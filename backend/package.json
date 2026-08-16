@@ -17,7 +17,9 @@
   },
   "scripts": {
     "server": "nodemon ./src/server.js --ext js --exec babel-node",
-    "initdata": "node ./src/initdata.js"
+    "initdata": "node ./src/initdata.js",
+    "migrate-2026": "node ./src/migrate2026.js",
+    "migrate-2026:apply": "node ./src/migrate2026.js --apply"
   },
   "type": "module"
 }

@@ -11,10 +11,14 @@ import Pair from "../models/pair.js";
 import Effect from "../models/effect.js";
 
 dotenv.config();
-console.log(process.env.MONGO_URL);
+
+const mongoUrl = process.env.MONGODB_URI || process.env.MONGO_URL;
+if (!mongoUrl) {
+  throw new Error("找不到 MONGODB_URI，請先設定 backend/.env");
+}
 
 const db = mongoose.connection;
-mongoose.connect(process.env.MONGO_URL, {
+mongoose.connect(mongoUrl, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
@@ -720,39 +724,25 @@ db.once("open", async () => {
   await Broadcast.deleteMany({});
   console.log("delete done");
 
-  users.forEach(async (user) => {
-    await new User(user).save();
-  });
+  await Promise.all(users.map((user) => new User(user).save()));
   console.log("users created");
 
-  lands.forEach(async (ground) => {
-    await new Land(ground).save();
-  });
+  await Promise.all(lands.map((ground) => new Land(ground).save()));
   console.log("lands created");
 
-  resources.forEach(async (row) => {
-    await new Resource(row).save();
-  });
+  await Promise.all(resources.map((row) => new Resource(row).save()));
   console.log("resources created");
 
-  teams.forEach(async (row) => {
-    await new Team(row).save();
-  });
+  await Promise.all(teams.map((row) => new Team(row).save()));
   console.log("teams created");
 
-  events.forEach(async (row) => {
-    await new Event(row).save();
-  });
+  await Promise.all(events.map((row) => new Event(row).save()));
   console.log("events created");
 
-  pairs.forEach(async (row) => {
-    await new Pair(row).save();
-  });
+  await Promise.all(pairs.map((row) => new Pair(row).save()));
   console.log("pairs created");
 
-  notifications.forEach(async (row) => {
-    await new Notification(row).save();
-  });
+  await Promise.all(notifications.map((row) => new Notification(row).save()));
   console.log("notifications created");
 
   // effects.forEach(async (row) => {
@@ -761,5 +751,6 @@ db.once("open", async () => {
   // console.log("effects created");
 
   console.log("finish saving data");
+  await mongoose.disconnect();
 });
 

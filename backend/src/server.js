@@ -3,13 +3,8 @@ import http from "http";
 import https from "https";
 import mongoose from "mongoose";
 import express from "express";
-// import session from "express-session";
 import dotenv from "dotenv-defaults";
 import fs from "fs";
-import path from "path";
-// import redis from "ioredis";
-// import connectRedis from "connect-redis";
-// import { v4 as uuid_v4 } from "uuid";
 import morgan from "morgan";
 import cors from "cors";
 
@@ -18,127 +13,118 @@ import socket from "./socket.js";
 
 dotenv.config();
 
-const db = mongoose.connection;
+const { NODE_ENV, HTTPS, PORT, MONGO_URL, MONGODB_URI } = process.env;
+const mongoUrl = MONGODB_URI || MONGO_URL;
+const port = PORT || 4000;
+const app = express();
 
-if (process.env.NODE_ENV === "development") {
+if (NODE_ENV === "development") {
   console.log("NODE_ENV = development");
 }
 
-const { NODE_ENV, HTTPS, PORT, REDIS_URL, SESSION_PREFIX, MONGO_URL } =
-  process.env;
+let server;
+let protocol = "http";
+const useHttps = NODE_ENV === "development" && HTTPS === "true";
 
-const port = PORT || 4000;
+if (useHttps) {
+  console.log("Use https in development");
+  protocol = "https";
+  const { SSL_CRT_FILE, SSL_KEY_FILE } = process.env;
+  const key = fs.readFileSync(SSL_KEY_FILE, "utf8");
+  const cert = fs.readFileSync(SSL_CRT_FILE, "utf8");
+  server = https.createServer({ key, cert }, app);
+} else {
+  server = http.createServer(app);
+}
 
-mongoose.connect(MONGO_URL, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"],
+  },
 });
 
-db.on("error", console.error.bind(console, "connection error:"));
-db.once("open", () => {
-  console.log("MongoDB connected");
+app.use(express.json());
+app.use(cors());
+app.use(morgan("dev"));
+app.use((request, response, next) => {
+  request.io = io;
+  next();
+});
 
-  const app = express();
+const databaseStates = [
+  "disconnected",
+  "connected",
+  "connecting",
+  "disconnecting",
+];
 
-  let server;
-  let protocal = "http";
-  if (NODE_ENV === "development" && HTTPS) {
-    console.log("Use https in development");
-    protocal = "https";
-    const { SSL_CRT_FILE, SSL_KEY_FILE } = process.env;
-    const key = fs.readFileSync(SSL_KEY_FILE, "utf8");
-    const cert = fs.readFileSync(SSL_CRT_FILE, "utf8");
-    server = https.createServer({ key, cert }, app);
-  } else {
-    server = http.createServer(app);
+app.get("/api/health", (req, res) => {
+  const connected = mongoose.connection.readyState === 1;
+  res.status(connected ? 200 : 503).json({
+    status: connected ? "ok" : "unavailable",
+    database:
+      databaseStates[mongoose.connection.readyState] || "unknown",
+  });
+});
+
+app.use(
+  "/api",
+  (req, res, next) => {
+    if (mongoose.connection.readyState !== 1) {
+      res.status(503).json({
+        error: "database_unavailable",
+        message:
+          "後端已啟動，但 MongoDB 尚未連線。請檢查 backend/.env 的 MONGODB_URI。",
+      });
+      return;
+    }
+    next();
+  },
+  apiRouter
+);
+
+socket(io);
+
+server.listen(port, () =>
+  console.log(`App listening at ${protocol}://localhost:${port}`)
+);
+
+const connectDatabase = async () => {
+  if (!mongoUrl?.trim()) {
+    console.error(
+      "MongoDB 未設定：請在 backend/.env 填入有效的 MONGODB_URI。"
+    );
+    return;
   }
 
-  const io = new Server(server, {
-    cors: {
-      origin: "http://localhost:3000",
-      methods: ["GET", "POST"],
-    },
-  });
-  // app.locals.io = io;
+  try {
+    await mongoose.connect(mongoUrl, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 10000,
+    });
+    console.log("MongoDB connected");
+  } catch (error) {
+    const errorCode = error?.reason?.code || error?.code || error?.name;
+    console.error(`MongoDB connection failed (${errorCode || "unknown"}).`);
+    if (errorCode === "ENOTFOUND") {
+      console.error(
+        "找不到 MongoDB Atlas 主機；目前的 cluster 網址可能已失效或已被重新命名。"
+      );
+    }
+    console.error(
+      "後端會維持啟動並回覆 503；更新 backend/.env 後，請重新啟動後端。"
+    );
+  }
+};
 
-  // const redisClient = redis.createClient(6379, REDIS_URL);
-  // redisClient.on("error", console.error);
-
-  // const RedisStore = connectRedis(session);
-
-  // const sessionOptions = {
-  //   cookie: {
-  //     path: "/",
-  //     httpOnly: true,
-  //     secure: true,
-  //     maxAge: null,
-  //   },
-  //   resave: false,
-  //   saveUninitialized: false,
-  //   secret: uuid_v4(),
-  //   unset: "destroy",
-  //   store: new RedisStore({
-  //     client: redisClient,
-  //     prefix: SESSION_PREFIX,
-  //   }),
-  // };
-
-  // sessionOptions.store.clear();
-
-  // if (NODE_ENV === "development" && !HTTPS) {
-  // sessionOptions.cookie.secure = false;
-  // console.log("Secure cookie is off");
-  // }
-  // if (NODE_ENV === "production") {
-  //   console.log("NODE_ENV = production");
-  //   app.set("trust proxy", 1);
-  //   console.log("Trust proxy is on");
-  // }
-
-  // const sessionMiddleware = session(sessionOptions);
-
-  // io.use((socket, next) => {
-  //   sessionMiddleware(socket.request, socket.request.res || {}, next);
-  // });
-
-  // app.use(function (req, res, next) {
-  //   res.header("Access-Control-Allow-Origin", "http://localhost:3000");
-  // res.header("Access-Control-Allow-Origin", "http://trader.asuscomm.com");
-  //   res.header(
-  //     "Access-Control-Allow-Headers",
-  //     "Origin, X-Requested-With, Content-Type, Accept"
-  //   );
-  //   res.header(
-  //     "Access-Control-Allow-Methods",
-  //     "POST, GET, PUT, DELETE, OPTIONS"
-  //   );
-  //   res.header("Access-Control-Allow-Credentials", "true");
-  //   next();
-  // });
-  // init middleware
-  // if (process.env.NODE_ENV === "production") {
-  //   const __dirname = path.resolve();
-  //   app.use(express.static(path.join(__dirname, "../frontend", "build")));
-  // }
-  app.use(express.json());
-  app.use(cors());
-  // app.use(sessionMiddleware);
-  app.use(morgan("dev"));
-  // app.use(express.static(path.join(process.cwd(), "build")));
-  app.use(function (request, response, next) {
-    request.io = io;
-    next();
-  });
-
-  app.use("/api", apiRouter);
-
-  // app.get("/*", (req, res) => {
-  //   res.sendFile(path.join(process.cwd(), "build", "index.html"));
-  // });
-
-  socket(io);
-
-  server.listen(port, () =>
-    console.log(`App listening at ${protocal}://localhost:${port}`)
-  );
+mongoose.connection.on("error", () => {
+  console.error("MongoDB connection error.");
 });
+
+mongoose.connection.on("disconnected", () => {
+  console.warn("MongoDB disconnected.");
+});
+
+connectDatabase();
