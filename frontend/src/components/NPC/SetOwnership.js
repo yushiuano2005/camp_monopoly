@@ -27,6 +27,7 @@ const SetOwnership = () => {
   const [building, setBuilding] = useState(-1);
   const [buildingData, setBuildingData] = useState({});
   const [level, setLevel] = useState(1);
+  const [development, setDevelopment] = useState("");
   const [prefill, setPrefill] = useState(false);
   const [open, setOpen] = useState(false);
   const { roleId, filteredBuildings, setNavBarId } = useContext(RoleContext);
@@ -37,17 +38,29 @@ const SetOwnership = () => {
   // console.log(prefillBuilding);
   // console.log(prefillTeams);
 
+  const isLargeProperty =
+    Boolean(buildingData.largePropertyGroup) ||
+    [13, 14, 26, 27].includes(Number(buildingData.id));
+
   const handleClick = async () => {
-    const payload = { teamId: team, land: buildingData.name, level };
+    const payload = {
+      teamId: team,
+      land: buildingData.name,
+      landId: buildingData.id,
+      level,
+      development,
+    };
     await axios.post("/ownership", payload);
     navigate("/properties?id=" + buildingData.id);
     setNavBarId(3);
-    await axios.post("/calcbonus", payload);
+    if (!isLargeProperty) await axios.post("/calcbonus", payload);
   };
 
   const handleTeam = (team) => {
     if (team === 0) {
       setLevel(0);
+    } else if (buildingData.type === "Building") {
+      setLevel(buildingData.development === "Park" ? 1 : buildingData.level + 1);
     }
     setTeam(team);
   };
@@ -56,8 +69,9 @@ const SetOwnership = () => {
     const { data } = await axios.get("/land/" + building);
     setBuilding(building);
     setBuildingData(data);
+    setDevelopment(data.development || "");
     if (data.type === "Building") {
-      setLevel(data.level + 1);
+      setLevel(data.development === "Park" ? 1 : data.level + 1);
     } else {
       setLevel(0);
     }
@@ -119,6 +133,24 @@ const SetOwnership = () => {
               ))}
             </Select>
           </FormControl>
+          {isLargeProperty ? (
+            <FormControl variant="standard" sx={{ minWidth: 250, marginTop: 2 }}>
+              <InputLabel id="development-label">大型地產建築</InputLabel>
+              <Select
+                value={development}
+                labelId="development-label"
+                disabled={team === 0 || Boolean(buildingData.development)}
+                onChange={(e) => setDevelopment(e.target.value)}
+              >
+                <MenuItem value="Hotel">飯店</MenuItem>
+                <MenuItem value="Transport">轉運站</MenuItem>
+                <MenuItem value="Park">公園</MenuItem>
+              </Select>
+              {buildingData.development ? (
+                <FormHelperText>建築類型在購買後不可變更</FormHelperText>
+              ) : null}
+            </FormControl>
+          ) : null}
           <FormControl variant="standard" sx={{ minWidth: 250, marginTop: 2 }}>
             <TeamSelect
               label="Team"
@@ -135,7 +167,7 @@ const SetOwnership = () => {
             <Select
               value={level}
               labelId="level-building"
-              disabled={team === 0}
+              disabled={team === 0 || development === "Park"}
               onChange={(e) => {
                 setLevel(e.target.value);
               }}
@@ -162,7 +194,11 @@ const SetOwnership = () => {
             </Button> */}
             <Button
               variant="contained"
-              disabled={team === -1 || building === -1 }
+              disabled={
+                team === -1 ||
+                building === -1 ||
+                (isLargeProperty && team !== 0 && !development)
+              }
               onClick={handleClick}
               fullWidth
               sx={{ marginTop: 2 }}
@@ -181,6 +217,7 @@ const SetOwnership = () => {
                 {...buildingData}
                 level={level}
                 owner={team}
+                development={team === 0 ? null : development}
                 hawkEye={-1}
               />
             </>

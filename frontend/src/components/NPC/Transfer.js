@@ -42,6 +42,8 @@ const Transfer = () => {
   const [finalData, setFinalData] = useState({});
 
   const [amount, setAmount] = useState(0);
+  const [hotelDice, setHotelDice] = useState(1);
+  const [useTransport, setUseTransport] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [errorMessage0, setErrorMessage0] = useState("");
@@ -192,6 +194,8 @@ const Transfer = () => {
       const { data } = await axios.get("/land/" + building);
       setBuilding(building);
       setBuildingData(data);
+      setHotelDice(1);
+      setUseTransport(false);
       if (data.owner !== 0) {
         handleTo(data.owner, data);
       } 
@@ -216,7 +220,8 @@ const Transfer = () => {
 
       if (data.type === "Building") {
         if (data.level !== 0) {
-          setAmount(data.rent[data.level - 1]);
+          const baseRent = data.rent[data.level - 1];
+          setAmount(data.development === "Park" ? 0 : baseRent);
         }
       } else {
         setAmount(c * 5000);
@@ -225,6 +230,20 @@ const Transfer = () => {
       setBuilding(-1);
       setBuildingData({});
     }
+  };
+
+  const handleHotelDice = (dice) => {
+    setHotelDice(dice);
+    const baseRent = buildingData.rent?.[buildingData.level - 1] ?? 0;
+    setAmount(baseRent * dice);
+  };
+
+  const handleTransportUsage = (enabled) => {
+    setUseTransport(enabled);
+    const levelIndex = buildingData.level - 1;
+    const baseRent = buildingData.rent?.[levelIndex] ?? 0;
+    const extraFee = buildingData.transportFee?.[levelIndex] ?? 0;
+    setAmount(baseRent + (enabled ? extraFee : 0));
   };
 
   // const handlePercentMoney = async (percent) => {
@@ -389,6 +408,40 @@ const Transfer = () => {
             ))}
           </Select>
         </FormControl>
+        {buildingData.development === "Hotel" ? (
+          <FormControl variant="standard" sx={{ minWidth: 250, marginTop: 1 }}>
+            <InputLabel id="hotel-dice-label">飯店骰子點數</InputLabel>
+            <Select
+              value={hotelDice}
+              labelId="hotel-dice-label"
+              onChange={(e) => handleHotelDice(Number(e.target.value))}
+            >
+              {[1, 2, 3, 4, 5, 6].map((dice) => (
+                <MenuItem value={dice} key={dice}>
+                  {dice}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        ) : null}
+        {buildingData.development === "Transport" ? (
+          <FormControl variant="standard" sx={{ minWidth: 250, marginTop: 1 }}>
+            <InputLabel id="transport-usage-label">使用轉運功能</InputLabel>
+            <Select
+              value={useTransport ? "yes" : "no"}
+              labelId="transport-usage-label"
+              onChange={(e) => handleTransportUsage(e.target.value === "yes")}
+            >
+              <MenuItem value="no">只支付過路費</MenuItem>
+              <MenuItem value="yes">過路費＋轉運使用費</MenuItem>
+            </Select>
+          </FormControl>
+        ) : null}
+        {buildingData.development === "Park" ? (
+          <Typography variant="body2" sx={{ marginTop: 1 }}>
+            公園免收過路費
+          </Typography>
+        ) : null}
         <FormControl
           variant="standard"
           sx={{ minWidth: "250px", marginTop: 1 }}

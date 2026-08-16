@@ -8,7 +8,53 @@ import Pair from "../models/pair.js";
 import Effect from "../models/effect.js";
 import Broadcast from "../models/broadcast.js";
 import Resource from "../models/resource.js";
+import {
+  getDevelopmentConfig,
+  getLargePropertyGroup,
+  getLinkedLandIds,
+  isLargeProperty,
+} from "./largeProperties.js";
 const router = express.Router();
+
+const normalizeLand = (land) => {
+  const data = land.toObject ? land.toObject() : { ...land };
+  const group = getLargePropertyGroup(data.id);
+  if (!group) return data;
+
+  return {
+    ...data,
+    largePropertyGroup: Number(group),
+    development: data.development ?? null,
+    transportFee:
+      data.transportFee?.length === 3
+        ? data.transportFee
+        : [2000, 3000, 4000],
+  };
+};
+
+const updateLinkedLandState = async (landId, state) =>
+  Land.updateMany({ id: { $in: getLinkedLandIds(landId) } }, { $set: state });
+
+const resetLinkedLandState = async (landId) => {
+  const state = { owner: 0, level: 0 };
+  if (isLargeProperty(landId)) {
+    state.buffed = 0;
+    state.development = null;
+    state.rent = [0, 0, 0];
+    state.transportFee = [2000, 3000, 4000];
+  }
+  return updateLinkedLandState(landId, state);
+};
+
+const uniqueOwnedProperties = (lands) => {
+  const seen = new Set();
+  return lands.filter((land) => {
+    const key = getLargePropertyGroup(land.id) ?? `land-${land.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 const buffBuildings2 = async (building_1, building_2) => {
   for (let i = 0; i < 3; i++) {
@@ -290,12 +336,12 @@ router.get("/team/:teamId", async (req, res) => {
 
 router.get("/land", async (req, res) => {
   const lands = await Land.find().sort({ id: 1 });
-  res.json(lands).status(200);
+  res.json(lands.map(normalizeLand)).status(200);
 });
 
 router.get("/land/:id", async (req, res) => {
   const land = await Land.findOne({ id: req.params.id });
-  res.json(land).status(200);
+  res.json(land ? normalizeLand(land) : null).status(200);
 });
 
 router.get("/property/:teamId", async (req, res) => {
@@ -473,7 +519,7 @@ router.post("/sell", async (req, res) => {
   // team.money += price
   // await team.save();
   await updateTeam(land.owner, price, req.io, true);
-  await Land.findOneAndUpdate({ id: landId }, { owner: 0, level: 0 });
+  await resetLinkedLandState(landId);
   res.status(200).json({ message: "Sell successful" });
 });
 
@@ -542,6 +588,11 @@ router.post("/reset", async(req, res) =>{
   for(let i = 0; i < lands.length; i++) {
     lands[i].owner = 0;
     lands[i].level = 0;
+    if (isLargeProperty(lands[i].id)) {
+      lands[i].development = null;
+      lands[i].rent = [0, 0, 0];
+      lands[i].transportFee = [2000, 3000, 4000];
+    }
     await lands[i].save();
   }
 })
@@ -997,10 +1048,8 @@ router.post("/goldenFruit", async (req, res) => {
       (land[0].price.buy + (land[0].level - 1) * land[0].price.upgrade) * 0.07
     ) * 10;
 
-  land[0].owner = 0;
-  land[0].level = 0;
-  targetTeam[0].save();
-  land[0].save();
+  await targetTeam[0].save();
+  await resetLinkedLandState(building);
   req.io.emit("broadcast", {
     title: "金蔓莓果發動",
     description: `${targetTeam[0].teamname}被使用了金蔓莓果！`,
@@ -1065,10 +1114,8 @@ router.post("/soldout", async (req, res) => {
     Math.round(
       (land[0].price.buy + land[0].price.upgrade * (land[0].level - 1)) * 0.08
     ) * 10;
-  land[0].level = 0;
-  land[0].owner = 0;
   await team[0].save();
-  await land[0].save();
+  await resetLinkedLandState(building);
   res.json("Success").status(200);
 });
 
@@ -1084,7 +1131,9 @@ router.post("/deposit", async (req, res) => {
 router.post("/accounting", async (req, res) => {
   const teams = await Team.find().sort({ id: 1 });
   for (let i = 0; i < teams.length; i++) {
-    const lands = await Land.find({ owner: teams[i].id });
+    const lands = uniqueOwnedProperties(
+      await Land.find({ owner: teams[i].id })
+    );
     let total = 0;
     for (let i = 0; i < lands.length; i++) {
       total +=
@@ -1104,7 +1153,9 @@ router.post("/rob", async (req, res) => {
   const { id } = req.body;
   const team = await Team.find({ id: id });
   const teams = await Team.find().sort({ money: 1 });
-  const lands = await Land.find({ owner: teams[0].id, level: 1 });
+  const lands = uniqueOwnedProperties(
+    await Land.find({ owner: teams[0].id, level: 1 })
+  );
 
   if (lands.length === 0) {
     req.io.emit("broadcast", {
@@ -1113,8 +1164,7 @@ router.post("/rob", async (req, res) => {
     });
   } else {
     const index = Math.floor(Math.random() * lands.length);
-    lands[index].owner = id;
-    await lands[index].save();
+    await updateLinkedLandState(lands[index].id, { owner: id });
     req.io.emit("broadcast", {
       title: "趁火打劫發動",
       description: `${team[0].teamname}使用了趁火打劫, 搶走${teams[0].teamname}的${lands[index].name}, 2ㄏ2ㄏ`,
@@ -1159,36 +1209,26 @@ router.post("/equility", async (req, res) => {
 router.post("/handleBuff1", async (req, res) => {
   const { name } = req.body;
   console.log(name);
-  const land = await Land.find({ name: name });
-  land[0].buffed = 1;
-  for (let i = 0; i < 3; i++) {
-    land[0].rent[i] *= 1.5;
-  }
-  await land[0].save();
+  const land = await Land.findOne({ name });
+  const rent = land.rent.map((amount) => amount * 1.5);
+  await updateLinkedLandState(land.id, { buffed: 1, rent });
   res.json("Success").status(200);
 });
 
 router.post("/handleBuff2", async (req, res) => {
   const { name } = req.body;
-  const land = await Land.find({ name: name });
-  land[0].buffed = 2;
-  for (let i = 0; i < 3; i++) {
-    land[0].rent[i] *= 2;
-  }
-  await land[0].save();
+  const land = await Land.findOne({ name });
+  const rent = land.rent.map((amount) => amount * 2);
+  await updateLinkedLandState(land.id, { buffed: 2, rent });
   res.json("Success").status(200);
 });
 
 router.post("/handleDeBuff", async (req, res) => {
   const { name } = req.body;
-  const land = await Land.find({ name: name });
-  const originstatus = land[0].buffed;
-  land[0].buffed = 0;
-  for (let i = 0; i < 3; i++) {
-    if (originstatus === 1) land[0].rent[i] /= 1.5;
-    else if (originstatus === 2) land[0].rent[i] /= 2;
-  }
-  await land[0].save();
+  const land = await Land.findOne({ name });
+  const divisor = land.buffed === 1 ? 1.5 : land.buffed === 2 ? 2 : 1;
+  const rent = land.rent.map((amount) => amount / divisor);
+  await updateLinkedLandState(land.id, { buffed: 0, rent });
   res.json("Success").status(200);
 });
 
@@ -1280,22 +1320,48 @@ router.get("/transfer", async (req, res) => {
 // }
 
 router.post("/ownership", async (req, res) => {
-  const { teamId, land, level } = req.body;
-  const tmp1 = await Land.findOneAndUpdate({ name: land }, { owner: teamId });
-  if (!tmp1) {
-    res.status(403).send();
-    console.log("Update failed");
-    return;
-  }
-  const tmp2 = await Land.findOneAndUpdate({ name: land }, { level: level });
-  if (!tmp2) {
-    res.status(403).send();
-    console.log("Update failed");
-    return;
+  const { teamId, land, landId, level, development } = req.body;
+  const targetLand = landId
+    ? await Land.findOne({ id: landId })
+    : await Land.findOne({ name: land });
+
+  if (!targetLand) return res.status(404).json({ error: "Land not found" });
+
+  const numericTeamId = Number(teamId);
+  let numericLevel = numericTeamId === 0 ? 0 : Number(level);
+  const state = { owner: numericTeamId, level: numericLevel };
+
+  if (isLargeProperty(targetLand.id)) {
+    if (numericTeamId === 0) {
+      state.development = null;
+      state.rent = [0, 0, 0];
+      state.transportFee = [2000, 3000, 4000];
+    } else {
+      const selectedDevelopment = development || targetLand.development;
+      const config = getDevelopmentConfig(selectedDevelopment);
+      if (!config) {
+        return res.status(400).json({
+          error: "Large property development must be Hotel, Transport, or Park",
+        });
+      }
+      if (selectedDevelopment === "Park") {
+        numericLevel = 1;
+        state.level = numericLevel;
+      }
+      state.development = selectedDevelopment;
+      state.rent = config.rent;
+      state.transportFee = config.transportFee;
+      state.largePropertyGroup = Number(getLargePropertyGroup(targetLand.id));
+    }
   }
 
+  await updateLinkedLandState(targetLand.id, state);
+
   // await updateHawkEye(land);
-  res.status(200).send("update succeeded");
+  res.status(200).json({
+    message: "update succeeded",
+    landIds: getLinkedLandIds(targetLand.id),
+  });
 });
 
 router.post("/calcbonus", async (req, res) => {
@@ -1344,11 +1410,9 @@ router.post("/aquire", async (req, res) => {
     target[0].price.buy + (target[0].level - 1) * target[0].price.upgrade;
   newTeam[0].money -=
     target[0].price.buy + (target[0].level - 1) * target[0].price.upgrade;
-  target[0].owner = teamId;
-
   await originTeam[0].save();
   await newTeam[0].save();
-  await target[0].save();
+  await updateLinkedLandState(target[0].id, { owner: teamId });
   res.json("Success").status(200);
 });
 
@@ -1361,10 +1425,8 @@ router.post("/exchange", async (req, res) => {
   const { land, otherLand, teamId, otherTeamId } = req.body;
   const land_1 = await Land.find({ name: land });
   const land_2 = await Land.find({ name: otherLand });
-  land_1[0].owner = otherTeamId;
-  land_2[0].owner = teamId;
-  await land_1[0].save();
-  await land_2[0].save();
+  await updateLinkedLandState(land_1[0].id, { owner: otherTeamId });
+  await updateLinkedLandState(land_2[0].id, { owner: teamId });
   res.json("Success").status(200);
 });
 

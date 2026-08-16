@@ -42,13 +42,29 @@ const PropertyCard = ({
   price,
   rent,
   buffed,
+  largePropertyGroup,
+  development,
+  transportFee,
 }) => {
   const [open, setOpen] = useState(false);
   const [buy, setBuy] = useState(0);
   const [upgrade, setUpgrade] = useState(0);
   const { roleId } = useContext(RoleContext);
 
-  const colorData = type === "Building" ? colors[type][area] : colors[type];
+  const colorData =
+    type === "Building"
+      ? colors[type][area] ?? "rgb(123,92,166)"
+      : colors[type];
+  const developmentLabels = {
+    Hotel: "飯店",
+    Transport: "轉運站",
+    Park: "公園",
+  };
+  const isLargeProperty =
+    Boolean(largePropertyGroup) || [13, 14, 26, 27].includes(Number(id));
+  const displayName = isLargeProperty
+    ? `${name}（${developmentLabels[development] ?? "尚未開發"}）`
+    : name;
   // console.log(ref);
   let levelIcon = [];
   for (let i = 0; i < 3; i++) {
@@ -150,7 +166,7 @@ const PropertyCard = ({
                       : "",
                 }}
               >
-                {name}
+                {displayName}
               </Typography>
             </Grid>
             {type === "Building" || type === "SpecialBuilding" ? (
@@ -165,7 +181,7 @@ const PropertyCard = ({
               </Grid>
             )}
           </Grid>
-          {type === "Building" && (
+          {type === "Building" && development !== "Park" && (
             <Grid
               item
               xs={5}
@@ -231,7 +247,7 @@ const PropertyCard = ({
               sx={{ fontWeight: 700 }}
               component="h5"
             >
-              {`地產名稱：${name}`}
+              {`地產名稱：${displayName}`}
             </Typography>
             <Typography
               id="modal-modal-description-2"
@@ -252,7 +268,15 @@ const PropertyCard = ({
               sx={{ fontWeight: 700, fontSize: "0.9rem" }}
               component="h5"
             >
-              {`過路費： 一級 ${rent[0]} 二級 ${rent[1]} 三級 ${rent[2]} `}
+              {development === "Hotel"
+                ? `飯店基數：一級 ${rent[0]}、二級 ${rent[1]}、三級 ${rent[2]}；實收為骰子點數乘以基數`
+                : development === "Transport"
+                ? `轉運站過路費：${rent[0]}/${rent[1]}/${rent[2]}；使用轉運另加 ${
+                    transportFee?.[0] ?? 2000
+                  }/${transportFee?.[1] ?? 3000}/${transportFee?.[2] ?? 4000}`
+                : development === "Park"
+                ? "公園：免收過路費，且沒有等級"
+                : `過路費： 一級 ${rent[0]} 二級 ${rent[1]} 三級 ${rent[2]} `}
             </Typography>
             <Typography
               id="modal-modal-description-2"
