@@ -18,6 +18,7 @@ import axios from "../axios";
 
 const Event = () => {
   const [event, setEvent] = useState(0);
+  const [branch, setBranch] = useState("");
   const [message, setMessage] = useState("無");
   const [APIResponse, setAPIResponse] = useState("");
   const [tempPhase, setTempPhase] = useState(1);
@@ -26,8 +27,8 @@ const Event = () => {
   const navigate = useNavigate();
 
   const handleClick = async () => {
-    await axios.post("/event", { id: event }).then((res) => {
-      setAPIResponse(res.data);
+    await axios.post("/event", { id: event, branch }).then((res) => {
+      setAPIResponse(res.data.message);
     });
     // navigate("/notifications");
   };
@@ -80,6 +81,8 @@ const Event = () => {
   if (events.length === 0) {
     return <Loading />;
   } else {
+    const selectedEvent = events.find((item) => item.id === event);
+    const selectedBranches = selectedEvent?.branches ?? [];
     return (
       <Container component="main" maxWidth="xs">
         <Box
@@ -99,8 +102,19 @@ const Event = () => {
               value={event}
               labelId="title"
               onChange={(e) => {
+                const nextEvent = events.find(
+                  (item) => item.id === e.target.value
+                );
+                const nextBranch = nextEvent?.branches?.[0]?.id ?? "";
+                const nextBranchDescription =
+                  nextEvent?.branches?.[0]?.description ?? "";
                 setEvent(e.target.value);
-                setMessage(events[e.target.value].description);
+                setBranch(nextBranch);
+                setMessage(
+                  [nextBranchDescription, nextEvent?.description]
+                    .filter(Boolean)
+                    .join("\n")
+                );
               }}
             >
               {events.map((item) => {
@@ -111,6 +125,32 @@ const Event = () => {
                 );
               })}
             </Select>
+            {selectedBranches.length > 0 ? (
+              <FormControl variant="standard" sx={{ marginTop: 2 }}>
+                <InputLabel id="branch-title">事件分支</InputLabel>
+                <Select
+                  value={branch}
+                  labelId="branch-title"
+                  onChange={(e) => {
+                    const nextBranch = selectedBranches.find(
+                      (item) => item.id === e.target.value
+                    );
+                    setBranch(e.target.value);
+                    setMessage(
+                      `${nextBranch?.description ?? ""}\n${
+                        selectedEvent?.description ?? ""
+                      }`
+                    );
+                  }}
+                >
+                  {selectedBranches.map((item) => (
+                    <MenuItem value={item.id} key={item.id}>
+                      {item.title}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            ) : null}
             <TextField
               id="content"
               label="Content"
@@ -122,7 +162,14 @@ const Event = () => {
                 setMessage(e.target.value);
               }}
             />
-            <Button disabled={!message} onClick={handleClick}>
+            <Button
+              disabled={
+                event === 0 ||
+                !message ||
+                (selectedBranches.length > 0 && !branch)
+              }
+              onClick={handleClick}
+            >
               Submit
             </Button>
           </FormControl>

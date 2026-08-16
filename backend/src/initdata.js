@@ -504,64 +504,106 @@ const events = [
   },
   {
     id: 1,
-    title: "反安倍三支箭",
-    description:
-      "銀行升息成30%",
+    title: "幣圈龍婆聖旨",
+    description: "銀行利率升到30%，布萊德彼特幣價值變為50%",
   },
   {
     id: 2,
-    title: "財富洗牌",
-    description: "第1名和第9名、第2名和第8名…現金互換，中位數保持不變",
+    title: "You can 踹 one more time",
+    description: "在地產格的小隊每隊扣5000元；布萊德彼特幣價值變為60%",
   },
   {
     id: 3,
-    title: "馬斯克發廢文",
-    description: "布萊德彼特幣暴跌",
+    title: "普發一萬元但沒錢所以加蓋房屋",
+    description:
+      "每個小隊的地產格都可升級一次，銀行利率變成20%，布萊德彼特幣價值變為20%",
   },
   {
     id: 4,
-    title: "普發一萬元但沒錢所以加蓋房屋",
-    description: "每個小隊的地產格都可以升級一次(加蓋房屋)",
+    title: "富翁掉錢",
+    description:
+      "銀行利率回歸10%，特定格子放置現金，先走到先拿；布萊德彼特幣價值變為30%",
   },
-
-  // {
-  //   id: 4,
-  //   title: "銀行倒閉，金融危機",
-  //   description: "銀行倒了，裡面所有的錢都拿去修建銀行，這段期間銀行暫停所有功能",
-  //},
   {
     id: 5,
-    title: "富翁掉錢",
-    description: "特定幾格有放上現金，先走到先拿",
+    title: "男同俱樂部",
+    description:
+      "所有男隊輔進監獄，花6000元救回；5分鐘內未救援的小隊全隊進監獄一次；布萊德彼特幣價值變為50%",
   },
   {
     id: 6,
-    title: "男同俱樂部",
-    description: "所有男隊輔進監獄，花6000元救回他們",
+    title: "剝削勞工／我們的財產",
+    description: "銀行利率變回10%，布萊德彼特幣價值變為300%；由場控抽選分支",
+    branches: [
+      {
+        id: "labor",
+        title: "剝削勞工",
+        description: "每個小隊隨機決定是否進監獄",
+      },
+      {
+        id: "property",
+        title: "我們的財產",
+        description: "手頭現金第一名與最後一名、第二名與倒數第二名依序對調",
+      },
+    ],
   },
   {
     id: 7,
-    title: "資本主義",
-    description:
-      "布萊德彼特幣大漲",
+    title: "市場的手／批鬥地主",
+    description: "布萊德彼特幣價值變為160%；由場控選擇分支",
+    branches: [
+      {
+        id: "market",
+        title: "市場的手",
+        description: "布萊德彼特幣大漲",
+      },
+      {
+        id: "landlord",
+        title: "批鬥地主",
+        description: "各小隊依地產數量與等級扣除2000倍的現金",
+      },
+    ],
   },
   {
     id: 8,
-    title: "批鬥地主",
-    description:
-      "一棟房子扣2000，等級越高扣越多",
+    title: "讓美國再次偉大／文化大革命",
+    description: "布萊德彼特幣價值變為150%；由場控選擇分支",
+    branches: [
+      {
+        id: "maga",
+        title: "讓美國再次偉大",
+        description: "所有小隊上交銀行帳戶50%的錢",
+      },
+      {
+        id: "revolution",
+        title: "文化大革命",
+        description: "有房子的小隊隨機被破壞一棟房子",
+      },
+    ],
   },
   {
     id: 9,
-    title: "讓美國再次偉大",
-    description: "銀行的錢拿走50%",
+    title: "馬斯克發廢文",
+    description: "布萊德彼特幣暴跌，價值變為5%",
   },
   {
     id: 10,
-    title: "文化大革命",
-    description: "有房子的小隊，隨機被破壞移除一棟房子",
-  }
-
+    title: "資本主義／共產主義最終結果",
+    description:
+      "手頭現金第一名與最後一名依序對調，布萊德彼特幣價值變為10%；由場控選擇勝方",
+    branches: [
+      {
+        id: "capitalism",
+        title: "資本主義獲勝：發動我們的財產",
+        description: "毛澤東反擊川普，發動我們的財產",
+      },
+      {
+        id: "communism",
+        title: "共產主義獲勝：發動讓美國再次偉大",
+        description: "川普反擊毛澤東，發動讓美國再次偉大",
+      },
+    ],
+  },
 ];
 
 // const effects = [

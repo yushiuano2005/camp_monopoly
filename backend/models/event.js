@@ -5,6 +5,14 @@ const EventSchema = new Schema({
   title: String,
   description: String,
   note: String,
+  branches: [
+    {
+      id: String,
+      title: String,
+      description: String,
+    },
+  ],
+  selectedBranch: { type: String, default: "" },
 });
 
 const Event = mongoose.model("Event", EventSchema);
