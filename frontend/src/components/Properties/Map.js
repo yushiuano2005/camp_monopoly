@@ -18,8 +18,8 @@ const Map = () => {
           Game Map
         </Typography>
         <img
-          src="/EEmap.JPG"
-          alt="Map"
+          src="/EEmap-2026.png"
+          alt="2026 大富翁格子地圖"
           style={{
             maxWidth: "100%",
             userSelect: "none",

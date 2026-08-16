@@ -15,8 +15,8 @@ const Home = () => {
         }}
       />
       <img
-        src="/EEcampCover.jpg"
-        alt="Avengers"
+        src="/EEcampCover.png"
+        alt="2026 電機外交聯合宿營主視覺"
         style={{
           maxWidth: "100%",
           userSelect: "none",

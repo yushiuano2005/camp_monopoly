@@ -6,7 +6,6 @@ import {
   Typography,
   Box,
   Button,
-  FormControl,
   Snackbar,
   Alert,
 } from "@mui/material";
@@ -24,7 +23,15 @@ export const roleIdMap = {
   第07小隊: 7,
   第08小隊: 8,
   第09小隊: 9,
-  第10小隊: 10,
+  team01: 1,
+  team02: 2,
+  team03: 3,
+  team04: 4,
+  team05: 5,
+  team06: 6,
+  team07: 7,
+  team08: 8,
+  team09: 9,
   NPC: 50,
   admin: 100,
 };
@@ -38,27 +45,44 @@ const Login = () => {
   const { setRole, setRoleId } = useContext(RoleContext);
 
   const handleClick = async () => {
-    // post /api/login
-    const payload = { username: user, password: password };
-    const {
-      data: { username },
-    } = await axios.post("/login", payload);
-    // console.log(username);
-    if (username !== "") {
-      // success!
-      setOpen(true);
-      setMessage("Successfully login!");
-      setRole(username);
-      const id = roleIdMap[username];
-      setRoleId(id);
-      // console.log(roleIdMap[username]);
-      localStorage.setItem("role", username);
-      navigate("/");
-    } else {
-      //failed
+    if (!(user && password)) return;
+
+    try {
+      const payload = { username: user, password };
+      const {
+        data: { username },
+      } = await axios.post("/login", payload);
+
+      if (username !== "") {
+        const id = roleIdMap[username];
+        if (!id) {
+          throw new Error(`Unknown login role: ${username}`);
+        }
+
+        setOpen(true);
+        setMessage("Successfully login!");
+        setRole(username);
+        setRoleId(id);
+        localStorage.setItem("role", username);
+        navigate("/");
+        return;
+      }
+
       setRole("");
       setRoleId(0);
       setMessage("Wrong Username or Password.");
+      setOpen(true);
+    } catch (error) {
+      setRole("");
+      setRoleId(0);
+
+      if (error.response?.status === 503) {
+        setMessage("後端已啟動，但資料庫尚未連線，請檢查 MongoDB 設定。");
+      } else if (!error.response) {
+        setMessage("無法連接後端，請確認 yarn start-backend 是否正在執行。");
+      } else {
+        setMessage("登入時發生錯誤，請稍後再試。");
+      }
       setOpen(true);
     }
   };
@@ -83,7 +107,14 @@ const Login = () => {
         <Typography component="h1" variant="h5" sx={{ marginBottom: 1 }}>
           Login
         </Typography>
-        <FormControl variant="standard">
+        <Box
+          component="form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleClick();
+          }}
+          sx={{ display: "flex", flexDirection: "column" }}
+        >
           <TextField
             required
             label="Username"
@@ -108,13 +139,13 @@ const Login = () => {
             }}
           />
           <Button
+            type="submit"
             sx={{ marginTop: 1 }}
             disabled={!(user && password)}
-            onClick={handleClick}
           >
             Login
           </Button>
-        </FormControl>
+        </Box>
       </Box>
       <Snackbar open={open} autoHideDuration={3000} onClose={handleClose}>
         <Alert
