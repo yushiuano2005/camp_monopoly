@@ -14,6 +14,7 @@ import { executeEvent2026, getEventPayload } from "./event2026.js";
 import {
   getDefaultEventAnnouncement,
   getEventExecutionDetails,
+  getOrderedEventBranches,
 } from "./eventContent2026.js";
 import { RESET_SCOPE_OPTIONS, resetGameData } from "./initdata.js";
 import {
@@ -783,7 +784,7 @@ router.get("/allEvents", async (req, res) => {
         title: Number(data.id) === 10 ? "最後的戰役" : data.title,
         defaultAnnouncement: getDefaultEventAnnouncement(data.id),
         executionDetails: getEventExecutionDetails(data.id),
-        branches: (data.branches ?? []).map((branch) => ({
+        branches: getOrderedEventBranches(data.id, data.branches).map((branch) => ({
           ...branch,
           defaultAnnouncement: getDefaultEventAnnouncement(data.id, branch.id),
           executionDetails: getEventExecutionDetails(data.id, branch.id),

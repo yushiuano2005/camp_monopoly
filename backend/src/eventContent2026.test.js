@@ -4,6 +4,7 @@ import {
   EVENT_CONTENT_IDS,
   getDefaultEventAnnouncement,
   getEventExecutionDetails,
+  getOrderedEventBranches,
 } from "./eventContent2026.js";
 import {
   DEFAULT_EVENT_BANK_MULTIPLIER,
@@ -84,8 +85,9 @@ test("every major event has exactly one configured bank multiplier", () => {
   assert.equal(getEventRule(8, "maga").bankEffectMultiplier, 0.5);
   assert.equal(getEventRule(8, "revolution").bankMultiplier, 1.1);
   assert.equal(getEventRule(10, "capitalism").bankMultiplier, 1.1);
+  assert.equal(getEventRule(10, "capitalism").bankEffectMultiplier, 0.5);
   assert.equal(getEventRule(10, "communism").bankMultiplier, DEFAULT_EVENT_BANK_MULTIPLIER);
-  assert.equal(getEventRule(10, "communism").bankEffectMultiplier, 0.5);
+  assert.equal(getEventRule(10, "communism").bankEffectMultiplier, undefined);
 });
 
 test("every major event uses the 2026 Bitcoin price from the event sheet", () => {
@@ -108,10 +110,76 @@ test("every major event uses the 2026 Bitcoin price from the event sheet", () =>
 });
 
 test("bank penalties do not replace the required event interest settlement", () => {
-  for (const [eventId, branch] of [[8, "maga"], [10, "communism"]]) {
+  for (const [eventId, branch] of [[8, "maga"], [10, "capitalism"]]) {
     const details = getEventExecutionDetails(eventId, branch).join(" ");
     assert.match(details, /1\.10/);
     assert.match(details, /0\.50/);
     assert.match(details, /完成本輪複利後/);
+  }
+});
+
+test("property-event announcements match their automatic execution", () => {
+  const upgradeAnnouncement = getDefaultEventAnnouncement(3);
+  const upgradeDetails = getEventExecutionDetails(3).join(" ");
+  assert.match(upgradeAnnouncement, /所有已購買/);
+  assert.match(upgradeDetails, /自動免費升級/);
+  assert.match(upgradeDetails, /不扣除小隊現金/);
+  assert.doesNotMatch(upgradeDetails, /手動選擇/);
+
+  const revolutionAnnouncement = getDefaultEventAnnouncement(8, "revolution");
+  const revolutionDetails = getEventExecutionDetails(8, "revolution").join(" ");
+  assert.match(revolutionAnnouncement, /各隨機選取一處/);
+  assert.match(revolutionDetails, /自動降低一級/);
+  assert.doesNotMatch(revolutionDetails, /Property Demolition|系統不會自動/);
+});
+
+test("political branches and final-battle effects use the corrected mapping", () => {
+  assert.match(getDefaultEventAnnouncement(6, "labor"), /資本主義分支/);
+  assert.match(getDefaultEventAnnouncement(6, "property"), /共產主義分支/);
+  assert.match(getDefaultEventAnnouncement(7, "market"), /資本主義分支/);
+  assert.match(getDefaultEventAnnouncement(7, "landlord"), /共產主義分支/);
+  assert.match(getEventExecutionDetails(8, "maga").join(" "), /資本主義/);
+  assert.match(getDefaultEventAnnouncement(8, "revolution"), /共產主義分支/);
+
+  const capitalismAnnouncement = getDefaultEventAnnouncement(10, "capitalism");
+  const capitalismDetails = getEventExecutionDetails(10, "capitalism").join(" ");
+  assert.match(capitalismAnnouncement, /發動讓美國再次偉大/);
+  assert.match(capitalismDetails, /0\.50/);
+  assert.doesNotMatch(capitalismAnnouncement, /交換首尾/);
+
+  const communismAnnouncement = getDefaultEventAnnouncement(10, "communism");
+  const communismDetails = getEventExecutionDetails(10, "communism").join(" ");
+  assert.match(communismAnnouncement, /發動我們的財產/);
+  assert.match(communismDetails, /首尾小隊配對/);
+  assert.doesNotMatch(communismDetails, /0\.50/);
+});
+
+test("MAGA uses the requested default announcement", () => {
+  assert.equal(
+    getDefaultEventAnnouncement(8, "maga"),
+    "讓美國再次偉大，戶頭上交50%財產！本輪銀行先依預設 +10% 複利，再將各小隊複利後的銀行餘額乘以 0.5（上交 50%）；布萊德彼特幣價格調整為 15,000。"
+  );
+});
+
+test("political branches are returned capitalism-first even for legacy database order", () => {
+  const legacyBranches = {
+    6: [{ id: "property" }, { id: "labor" }],
+    7: [{ id: "landlord" }, { id: "market" }],
+    8: [{ id: "revolution" }, { id: "maga" }],
+    10: [{ id: "communism" }, { id: "capitalism" }],
+  };
+
+  const expected = {
+    6: ["labor", "property"],
+    7: ["market", "landlord"],
+    8: ["maga", "revolution"],
+    10: ["capitalism", "communism"],
+  };
+
+  for (const [eventId, branches] of Object.entries(legacyBranches)) {
+    const ordered = getOrderedEventBranches(eventId, branches);
+    assert.deepEqual(ordered.map((branch) => branch.id), expected[eventId]);
+    assert.match(ordered[0].title, /資本主義/);
+    assert.match(ordered[1].title, /共產主義/);
   }
 });
