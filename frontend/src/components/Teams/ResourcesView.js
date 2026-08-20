@@ -74,12 +74,12 @@ const ResourcesView = () => {
             <CardContent>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
                 <AccountBalanceIcon color="primary" />
-                <Typography color="text.secondary">Latest applied bank rate</Typography>
+                <Typography color="text.secondary">Latest applied bank multiplier</Typography>
               </Box>
               <Typography variant="h4">{Number(interestRate ?? 1).toFixed(2)}×</Typography>
               <Typography variant="h6" color={percentage >= 0 ? "success.main" : "error.main"}>{percentageLabel}</Typography>
               <Typography variant="caption" color="text.secondary">
-                This multiplier has already been applied to every team's bank balance. Viewing this page does not apply it again.
+                Major Events apply one multiplier per round. Viewing this page does not apply it again.
               </Typography>
             </CardContent>
           </Card>

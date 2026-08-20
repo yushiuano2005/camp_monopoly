@@ -15,22 +15,24 @@ import RoleContext from "./useRole";
 
 const teamSteps = [
   ["Live Updates", "View the current major event, effects applied to your team, and staff announcements."],
-  ["My Team", "View only your team's cash, deposits, Bitcoin, final settlement cash, and properties."],
+  ["My Team", "View only your team's cash, bank balance, Bitcoin, final settlement cash, and properties."],
   ["Properties", "Check property prices, rent, owners, and building status."],
   ["Game Map", "Use the space numbers to confirm the team's location and route."],
-  ["Market View", "Check the current Bitcoin price and latest applied bank rate."],
+  ["Market View", "Check the current Bitcoin price and latest applied bank multiplier."],
 ];
 
 const npcSteps = [
   ["1. Confirm the game result", "Verify the team, board space, amount, and applicable rule before changing data."],
   ["2. Choose one operation", "Use Cash Adjustment for direct cash, Team Transfer for payments, and Bank Operations for deposits."],
   ["3. Keep property actions separate", "Use Property Purchase only for buying land, and Property Upgrade only for upgrades."],
-  ["4. Verify after submitting", "Check All Teams, Properties, or Market View and do not submit the same result twice."],
+  ["4. Handle event demolition separately", "Use Property Demolition only when Culture Revolution requires one building to be removed without a refund."],
+  ["5. Follow the bankruptcy order", "Offer a Bitcoin sale first; otherwise withdraw from the bank. If cash and bank are both insufficient, follow the SOP for bank robbery or jail. Never sell a property."],
+  ["6. Verify after submitting", "Check All Teams, Properties, or Market View and do not submit the same result twice."],
 ];
 
 const adminSteps = [
   ["Major Events", "Choose the event and on-site branch; an event may update the market, banks, or team assets."],
-  ["Bank Interest", "Enter a multiplier that is applied immediately to every team, such as 1.1 for +10%."],
+  ["Interest Correction", "Major Events already settle one round of bank interest. Use this page only to correct a missed or incorrect settlement."],
   ["Market Controls", "Use only for a manual correction and first check whether a major event already changed the price."],
   ["Global Announcements", "Choose the minimum visible role before publishing to teams, NPC staff, or Admin users."],
   ["System Reset", "Reset only selected scopes. Login accounts are excluded and data cannot be restored from the page."],
@@ -75,7 +77,7 @@ const Help = () => {
               <Typography variant="h5" fontWeight={700} gutterBottom>Admin workflow</Typography>
               <GuideCards items={adminSteps} />
               <Alert severity="warning" sx={{ mt: 2 }}>
-                Major Events, Bank Interest, and System Reset may affect several teams at once. Verify each result before continuing.
+                Major Events, Interest Correction, and System Reset may affect several teams at once. Verify each result before continuing.
               </Alert>
             </Box>
           )}

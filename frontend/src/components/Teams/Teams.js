@@ -64,7 +64,6 @@ const TeamPrivateView = ({ team, properties, coinPrice }) => {
   const finalSettlementCash =
     Number(team.money || 0) +
     Number(team.bank || 0) +
-    Number(team.deposit || 0) +
     Number(team.resources?.eecoin || 0) * coinPrice;
 
   return (
@@ -75,9 +74,9 @@ const TeamPrivateView = ({ team, properties, coinPrice }) => {
       </Typography>
       <Grid container spacing={2}>
         <TeamAssetCard icon={<PaidIcon color="primary" />} label="Cash" value={`$ ${formatNumber(team.money)}`} />
-        <TeamAssetCard icon={<AccountBalanceIcon color="primary" />} label="Bank balance" value={`$ ${formatNumber(team.bank)}`} helper={Number(team.deposit || 0) !== 0 ? `Pending settlement: $ ${formatNumber(team.deposit)}` : "Cash is shown separately"} />
+        <TeamAssetCard icon={<AccountBalanceIcon color="primary" />} label="Bank balance" value={`$ ${formatNumber(team.bank)}`} helper="Interest compounds when each major event is executed" />
         <TeamAssetCard icon={<CurrencyBitcoinIcon color="primary" />} label="Brad Pitt Bitcoin" value={`${formatNumber(team.resources?.eecoin)} coins`} helper={`Current unit price: $ ${formatNumber(coinPrice)}`} />
-        <TeamAssetCard icon={<CalculateIcon color="primary" />} label="Final settlement cash" value={`$ ${formatNumber(finalSettlementCash)}`} helper="Cash + all deposits + Bitcoin at the current price; properties are excluded" />
+        <TeamAssetCard icon={<CalculateIcon color="primary" />} label="Final settlement cash" value={`$ ${formatNumber(finalSettlementCash)}`} helper="Cash + bank balance + Bitcoin at the current price; properties are excluded" />
       </Grid>
 
       <Paper variant="outlined" sx={{ mt: 3, p: 2 }}>
@@ -128,7 +127,7 @@ const OperatorTeamTable = ({ teams, properties, coinPrice }) => {
           <TableBody>
             {teams.map((team) => {
               const owned = getTeamProperties(team.id);
-              const finalSettlementCash = Number(team.money || 0) + Number(team.bank || 0) + Number(team.deposit || 0) + Number(team.resources?.eecoin || 0) * coinPrice;
+              const finalSettlementCash = Number(team.money || 0) + Number(team.bank || 0) + Number(team.resources?.eecoin || 0) * coinPrice;
               return (
                 <TableRow key={team.id} hover>
                   <TableCell>{team.teamname}</TableCell>

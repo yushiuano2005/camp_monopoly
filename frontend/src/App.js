@@ -13,6 +13,7 @@ import AddMoney from "./components/NPC/AddMoney";
 import SetOwnership from "./components/NPC/SetOwnership";
 import Transfer from "./components/NPC/Transfer";
 import SetShopLevel from "./components/NPC/SetShopLevel";
+import RemoveBuilding from "./components/NPC/RemoveBuilding";
 import Event from "./components/admin/Event";
 import Resources from "./components/NPC/Resources";
 import Bank from "./components/admin/Bank";
@@ -108,6 +109,7 @@ const App = () => {
               <Route path="banktransfer" element={protectedPage(<BankTransfer />, "npc", "banktransfer")} />
               <Route path="setshop" element={protectedPage(<SetShopLevel />, "npc", "propertyupgrade")} />
               <Route path="propertyupgrade" element={protectedPage(<SetShopLevel />, "npc", "propertyupgrade")} />
+              <Route path="propertydemolition" element={protectedPage(<RemoveBuilding />, "npc", "propertydemolition")} />
               <Route path="random" element={protectedPage(<Random />, "npc")} />
               <Route path="event" element={protectedPage(<Event />, "admin", "event")} />
               <Route path="resources" element={protectedPage(<Resources />, "npc", "resources")} />

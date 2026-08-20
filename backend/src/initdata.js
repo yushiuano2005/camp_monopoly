@@ -66,7 +66,6 @@ const teams = [
     // occupation: "N/A",
     money: 40000,
     bank: 0,
-    deposit: 0,
     resourcesName: {  eecoin: "EE幣" },
     resources: {  eecoin: 0, cola: 0, wood: 0, metal: 0 },
     bonus: { value: 1.0, time: 0, duration: 0 },
@@ -78,7 +77,6 @@ const teams = [
     // occupation: "N/A",
     money: 40000,
     bank: 0,
-    deposit: 0,
     resourcesName: {  eecoin: "EE幣" },
     resources: {  eecoin: 0, cola: 0, wood: 0, metal: 0 },
     bonus: { value: 1.0, time: 0, duration: 0 },
@@ -90,7 +88,6 @@ const teams = [
     // occupation: "N/A",
     money: 40000,
     bank: 0,
-    deposit: 0,
     resourcesName: {  eecoin: "EE幣" },
     resources: {  eecoin: 0, cola: 0, wood: 0, metal: 0 },
     bonus: { value: 1.0, time: 0, duration: 0 },
@@ -102,7 +99,6 @@ const teams = [
     // occupation: "N/A",
     money: 40000,
     bank: 0,
-    deposit: 0,
     resourcesName: {  eecoin: "EE幣" },
     resources: {  eecoin: 0, cola: 0, wood: 0, metal: 0 },
     bonus: { value: 1.0, time: 0, duration: 0 },
@@ -114,7 +110,6 @@ const teams = [
     // occupation: "N/A",
     money: 40000,
     bank: 0,
-    deposit: 0,
     resourcesName: {  eecoin: "EE幣" },
     resources: {  eecoin: 0, cola: 0, wood: 0, metal: 0 },
     bonus: { value: 1.0, time: 0, duration: 0 },
@@ -126,7 +121,6 @@ const teams = [
     // occupation: "N/A",
     money: 40000,
     bank: 0,
-    deposit: 0,
     resourcesName: {  eecoin: "EE幣" },
     resources: {  eecoin: 0, cola: 0, wood: 0, metal: 0 },
     bonus: { value: 1.0, time: 0, duration: 0 },
@@ -138,7 +132,6 @@ const teams = [
     // occupation: "N/A",
     money: 40000,
     bank: 0,
-    deposit: 0,
     resourcesName: {  eecoin: "EE幣" },
     resources: {  eecoin: 0, cola: 0, wood: 0, metal: 0 },
     bonus: { value: 1.0, time: 0, duration: 0 },
@@ -150,7 +143,6 @@ const teams = [
     // occupation: "N/A",
     money: 40000,
     bank: 0,
-    deposit: 0,
     resourcesName: {  eecoin: "EE幣" },
     resources: {  eecoin: 0, cola: 0, wood: 0, metal: 0 },
     bonus: { value: 1.0, time: 0, duration: 0 },
@@ -162,7 +154,6 @@ const teams = [
     // occupation: "N/A",
     money: 40000,
     bank: 0,
-    deposit: 0,
     resourcesName: {  eecoin: "EE幣" },
     resources: {  eecoin: 0, cola: 0, wood: 0, metal: 0 },
     bonus: { value: 1.0, time: 0, duration: 0 },
@@ -498,35 +489,35 @@ const events = [
   {
     id: 1,
     title: "幣圈龍婆聖旨",
-    description: "銀行利率升到30%，布萊德彼特幣價值變為50%",
+    description: "銀行餘額複利增加30%，布萊德彼特幣價格設為5000",
   },
   {
     id: 2,
     title: "You can 踹 one more time",
-    description: "在地產格的小隊每隊扣5000元；布萊德彼特幣價值變為60%",
+    description: "銀行餘額依預設增加10%；地產格小隊由場控扣5000元；布萊德彼特幣價格設為6000",
   },
   {
     id: 3,
     title: "普發一萬元但沒錢所以加蓋房屋",
     description:
-      "每個小隊的地產格都可升級一次，銀行利率變成20%，布萊德彼特幣價值變為20%",
+      "不發放現金；每隊可升級一處地產；銀行餘額複利增加20%；布萊德彼特幣價格設為2000",
   },
   {
     id: 4,
     title: "富翁掉錢",
     description:
-      "銀行利率回歸10%，特定格子放置現金，先走到先拿；布萊德彼特幣價值變為30%",
+      "銀行餘額複利增加10%；場控在指定格子放置實體現金；布萊德彼特幣價格設為3000",
   },
   {
     id: 5,
     title: "男同俱樂部",
     description:
-      "所有男隊輔進監獄，花6000元救回；5分鐘內未救援的小隊全隊進監獄一次；布萊德彼特幣價值變為50%",
+      "銀行餘額依預設增加10%；所有男隊輔進監獄，花6000元救回；5分鐘內未救援的小隊全隊進監獄一次；布萊德彼特幣價格設為5000",
   },
   {
     id: 6,
     title: "剝削勞工／我們的財產",
-    description: "銀行利率變回10%，布萊德彼特幣價值變為300%；由場控抽選分支",
+    description: "銀行餘額複利增加10%，布萊德彼特幣價格設為30000；由場控選擇分支",
     branches: [
       {
         id: "labor",
@@ -543,57 +534,57 @@ const events = [
   {
     id: 7,
     title: "市場的手／批鬥地主",
-    description: "布萊德彼特幣價值變為160%；由場控選擇分支",
+    description: "銀行餘額依預設增加10%，布萊德彼特幣價格設為16000；由場控選擇分支",
     branches: [
       {
         id: "market",
         title: "市場的手",
-        description: "布萊德彼特幣大漲",
+        description: "除銀行複利與彼特幣價格外無額外效果",
       },
       {
         id: "landlord",
         title: "批鬥地主",
-        description: "各小隊依地產數量與等級扣除2000倍的現金",
+        description: "每筆已購地產扣除持有隊伍2000乘以地產等級的現金；大型地產只計一次",
       },
     ],
   },
   {
     id: 8,
     title: "讓美國再次偉大／文化大革命",
-    description: "布萊德彼特幣價值變為150%；由場控選擇分支",
+    description: "布萊德彼特幣價格設為15000；由場控選擇分支與銀行倍率",
     branches: [
       {
         id: "maga",
         title: "讓美國再次偉大",
-        description: "所有小隊上交銀行帳戶50%的錢",
+        description: "銀行餘額先依預設增加10%，再將複利後餘額乘以0.5",
       },
       {
         id: "revolution",
         title: "文化大革命",
-        description: "有房子的小隊隨機被破壞一棟房子",
+        description: "銀行餘額依預設增加10%；每個有房子的小隊各由場控抽選並移除一棟建築物",
       },
     ],
   },
   {
     id: 9,
     title: "馬斯克發廢文",
-    description: "布萊德彼特幣暴跌，價值變為5%",
+    description: "銀行餘額依預設增加10%；布萊德彼特幣價格設為500",
   },
   {
     id: 10,
     title: "最後的戰役",
     description:
-      "手頭現金第一名與最後一名依序對調，布萊德彼特幣價值變為10%；由場控選擇勝方",
+      "布萊德彼特幣價格設為1000；由場控選擇勝方與銀行倍率",
     branches: [
       {
         id: "capitalism",
         title: "資本主義獲勝：發動我們的財產",
-        description: "毛澤東反擊川普，發動我們的財產",
+        description: "銀行餘額依預設增加10%；手頭現金排名首尾配對交換",
       },
       {
         id: "communism",
         title: "共產主義獲勝：發動讓美國再次偉大",
-        description: "川普反擊毛澤東，發動讓美國再次偉大",
+        description: "銀行餘額先依預設增加10%，再將複利後餘額乘以0.5",
       },
     ],
   },
@@ -699,7 +690,7 @@ const pairs = [
   },
   {
     key: "bankInterestRate",
-    value: 1,
+    value: 1.1,
   },
 ];
 
@@ -707,7 +698,7 @@ export const RESET_SCOPE_OPTIONS = [
   {
     id: "teams",
     label: "Team data",
-    description: "Recreate nine teams and restore cash, bank, deposit, resources, and bonus states.",
+    description: "Recreate nine teams and restore cash, bank balances, resources, and bonus states.",
   },
   {
     id: "lands",
@@ -722,7 +713,7 @@ export const RESET_SCOPE_OPTIONS = [
   {
     id: "events",
     label: "Major events",
-    description: "Recreate the 2026 events, branches, event notes, and selected branches.",
+    description: "Recreate the aligned 2026 events, branches, announcements, notes, and selected branches.",
   },
   {
     id: "notifications",
@@ -737,7 +728,7 @@ export const RESET_SCOPE_OPTIONS = [
   {
     id: "gameState",
     label: "Global game state",
-    description: "Reset the current event, notification sequence, Hawk Eye team, game phase, and latest bank rate.",
+    description: "Reset the current event, notification sequence, Hawk Eye team, game phase, and latest bank multiplier to 1.10.",
   },
 ];
 

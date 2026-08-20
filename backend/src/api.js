@@ -26,19 +26,26 @@ const router = express.Router();
 const operatorSessions = new Map();
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 
-const createOperatorSession = (username) => {
+const createAuthSession = (username) => {
   const token = randomBytes(32).toString("hex");
   operatorSessions.set(token, { username, expiresAt: Date.now() + SESSION_TTL_MS });
   return token;
 };
 
-const requireOperator = (req, res, next) => {
+const getAuthSession = (req) => {
   const authorization = req.get("authorization") || "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
   const session = operatorSessions.get(token);
-
   if (!session || session.expiresAt <= Date.now()) {
     if (token) operatorSessions.delete(token);
+    return null;
+  }
+  return session;
+};
+
+const requireOperator = (req, res, next) => {
+  const session = getAuthSession(req);
+  if (!session) {
     return res.status(401).json({ error: "Operator login required" });
   }
   if (!["npc", "admin"].includes(String(session.username).toLowerCase())) {
@@ -47,6 +54,37 @@ const requireOperator = (req, res, next) => {
 
   req.operator = session;
   return next();
+};
+
+const requireAdmin = (req, res, next) => {
+  const session = getAuthSession(req);
+  if (!session) {
+    return res.status(401).json({ error: "Admin login required" });
+  }
+  if (String(session.username).toLowerCase() !== "admin") {
+    return res.status(403).json({ error: "Admin permission required" });
+  }
+
+  req.operator = session;
+  return next();
+};
+
+const requireTeamSelfOrOperator = (req, res, next) => {
+  const session = getAuthSession(req);
+  if (!session) return res.status(401).json({ error: "Login required" });
+
+  const username = String(session.username).toLowerCase();
+  if (["npc", "admin"].includes(username)) {
+    req.operator = session;
+    return next();
+  }
+
+  const match = username.match(/^team0?([1-9])$/) ?? username.match(/^第0?([1-9])小隊$/);
+  if (match && Number(match[1]) === Number(req.params.teamId)) {
+    req.operator = session;
+    return next();
+  }
+  return res.status(403).json({ error: "You may only view your own team data" });
 };
 
 const normalizeLand = (land) => {
@@ -334,19 +372,19 @@ async function deleteTimeoutNotification() {
 //     });
 //   });
 
-router.get("/team", async (req, res) => {
+router.get("/team", requireOperator, async (req, res) => {
   const teams = await Team.find().sort({ teamname: 1 });
   res.json(teams).status(200);
 });
 
-router.get("/teamRich", async (req, res) => {
+router.get("/teamRich", requireOperator, async (req, res) => {
   const teams = await Team.find().sort({ money: -1 });
   const team = teams[0];
   console.log(team);
   res.json(team).status(200);
 });
 
-router.post("/checkPropertyCost", async (req, res) => {
+router.post("/checkPropertyCost", requireOperator, async (req, res) => {
   const { team, building, mode } = req.body;
 
   const targetBuilding = await Land.find({ id: building });
@@ -366,7 +404,7 @@ router.post("/checkPropertyCost", async (req, res) => {
   }
 });
 
-router.get("/team/:teamId", async (req, res) => {
+router.get("/team/:teamId", requireTeamSelfOrOperator, async (req, res) => {
   const team = await Team.findOne({ id: req.params.teamId });
   res.json(team).status(200);
 });
@@ -381,7 +419,7 @@ router.get("/land/:id", async (req, res) => {
   res.json(land ? normalizeLand(land) : null).status(200);
 });
 
-router.get("/property/:teamId", async (req, res) => {
+router.get("/property/:teamId", requireTeamSelfOrOperator, async (req, res) => {
   const properties = await Land.find({ owner: req.params.teamId });
   res.json(properties).status(200);
 });
@@ -475,7 +513,40 @@ router.post("/property/upgrade", requireOperator, async (req, res) => {
   }
 });
 
-router.post("/set", async (req, res) => {
+router.post("/property/demolish", requireOperator, async (req, res) => {
+  const teamId = Number(req.body.teamId);
+  const landId = Number(req.body.landId);
+  const session = await mongoose.startSession();
+  let result;
+
+  try {
+    await session.withTransaction(async () => {
+      const team = await Team.findOne({ id: teamId }).session(session);
+      const land = await Land.findOne({ id: landId }).session(session);
+      if (!team || !land) throw Object.assign(new Error("Team or property not found"), { status: 404 });
+      if (land.owner !== teamId) {
+        throw Object.assign(new Error("Team does not own this property"), { status: 400 });
+      }
+      if (!["Building", "SpecialBuilding"].includes(land.type) || land.development === "Park") {
+        throw Object.assign(new Error("This property has no removable building"), { status: 400 });
+      }
+      if (Number(land.level) <= 1) {
+        throw Object.assign(new Error("This property has no building to remove"), { status: 400 });
+      }
+
+      const nextLevel = Number(land.level) - 1;
+      await updateLinkedLandState(landId, { level: nextLevel }, { session });
+      result = { teamId, landIds: getLinkedLandIds(landId), level: nextLevel };
+    });
+    return res.status(200).json({ message: "One building removed without refund", ...result });
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message });
+  } finally {
+    await session.endSession();
+  }
+});
+
+router.post("/set", requireOperator, async (req, res) => {
   const { id, amount } = req.body;
   await Team.findOneAndUpdate({ id: parseInt(id) }, { money: amount });
   res.json({ success: true }).status(200);
@@ -521,78 +592,81 @@ router.get("/resourcePrice", async (req, res) => {
   }
 });
 
-router.post("/controlResource", async (req, res) => {
-  const { teamId, resourceId, number, mode } = req.body;
-  const team = await Team.collection.findOne({ id: teamId });
-
-  if (mode === 0) {//-
-    if(resourceId == 0){ //布萊德彼特幣
-      await Team.findOneAndUpdate(
-        { id: teamId },
-        {
-          resources: {eecoin : Number(team.resources.eecoin) - Number(number)},
-        }
-      );
-    }
-  } else if (mode === 1) {//+
-    if(resourceId == 0){//布萊德彼特幣
-      await Team.findOneAndUpdate(
-        { id: teamId },
-        {
-          resources: { eecoin: Number(team.resources.eecoin) + Number(number) },
-        }
-      );
-    }
+router.post("/controlResource", requireOperator, async (req, res) => {
+  const teamId = Number(req.body.teamId);
+  const resourceId = Number(req.body.resourceId);
+  const quantity = Number(req.body.number);
+  const mode = Number(req.body.mode);
+  if (!Number.isInteger(teamId) || resourceId !== 0 || !Number.isInteger(quantity) || quantity <= 0 || ![0, 1].includes(mode)) {
+    return res.status(400).json({ error: "Select a team and enter a positive whole-number Bitcoin quantity" });
   }
-  
-  res.json("Success").status(200);
+
+  const team = await Team.findOne({ id: teamId });
+  if (!team) return res.status(404).json({ error: "Team not found" });
+  const currentQuantity = Number(team.resources?.eecoin || 0);
+  const nextQuantity = currentQuantity + (mode === 1 ? quantity : -quantity);
+  if (nextQuantity < 0) {
+    return res.status(400).json({ error: "Bitcoin balance cannot become negative" });
+  }
+
+  team.resources.eecoin = nextQuantity;
+  await team.save();
+  return res.status(200).json({ message: "Bitcoin balance corrected", teamId, quantity: nextQuantity });
 });
 
-router.post("/updateResourcePrice", async (req, res) => {
-  const {resourceId, price} = req.body;
-
-  await Resource.findOneAndUpdate(
+router.post("/updateResourcePrice", requireAdmin, async (req, res) => {
+  const resourceId = Number(req.body.resourceId);
+  const price = Number(req.body.price);
+  if (!Number.isInteger(resourceId) || !Number.isFinite(price) || price < 0) {
+    return res.status(400).json({ error: "Select a resource and enter a non-negative price" });
+  }
+  const resource = await Resource.findOneAndUpdate(
     { id: resourceId },
-    { 
-      price : price
-    }
+    { price },
+    { new: true }
   );
-
-  res.json("Success").status(200);
+  if (!resource) return res.status(404).json({ error: "Resource not found" });
+  return res.status(200).json(resource);
 });
 
 
-router.post("/sellResource", async (req, res) => {
-  const { teamId, resourceId, number, mode } = req.body;
-  const team = await Team.collection.findOne({ id: teamId });
-  const resource = await Resource.collection.findOne({ id: resourceId });
-
-  if (mode === 0) {//sell
-    if(resourceId == 0){ //eecoin
-      await Team.findOneAndUpdate(
-        { id: teamId },
-        {
-          resources: {eecoin : team.resources.eecoin - number},
-          money: team.money + resource.price * number
-        }
-      );
-    }
-  } else if (mode === 1) {//buy
-    if(resourceId == 0){//eecoin
-      await Team.findOneAndUpdate(
-        { id: teamId },
-        {
-          resources: {eecoin: Number(team.resources.eecoin) + Number(number) },
-          money: team.money - resource.price * number,
-        }
-      );
-    }
+router.post("/sellResource", requireOperator, async (req, res) => {
+  const teamId = Number(req.body.teamId);
+  const resourceId = Number(req.body.resourceId);
+  const quantity = Number(req.body.number);
+  const mode = Number(req.body.mode);
+  if (!Number.isInteger(teamId) || resourceId !== 0 || !Number.isInteger(quantity) || quantity <= 0 || ![0, 1].includes(mode)) {
+    return res.status(400).json({ error: "Select a team and enter a positive whole-number Bitcoin quantity" });
   }
-  
-  res.json("Success").status(200);
+
+  const [team, resource] = await Promise.all([
+    Team.findOne({ id: teamId }),
+    Resource.findOne({ id: resourceId }),
+  ]);
+  if (!team || !resource) return res.status(404).json({ error: "Team or Bitcoin price not found" });
+
+  const currentQuantity = Number(team.resources?.eecoin || 0);
+  const cost = Number(resource.price) * quantity;
+  if (mode === 0 && currentQuantity < quantity) {
+    return res.status(400).json({ error: "Team does not have enough Bitcoin to sell" });
+  }
+  if (mode === 1 && Number(team.money) < cost) {
+    return res.status(400).json({ error: "Team does not have enough cash to buy Bitcoin" });
+  }
+
+  team.resources.eecoin = currentQuantity + (mode === 1 ? quantity : -quantity);
+  team.money = Number(team.money) + (mode === 0 ? cost : -cost);
+  await team.save();
+  return res.status(200).json({
+    message: mode === 0 ? "Bitcoin sold" : "Bitcoin purchased",
+    teamId,
+    quantity: team.resources.eecoin,
+    money: team.money,
+    price: resource.price,
+  });
 });
 
-router.post("/percent", async (req, res) => {
+router.post("/percent", requireAdmin, async (req, res) => {
   try {
     // Fetch all teams
     const teams = await Team.find();
@@ -610,7 +684,7 @@ router.post("/percent", async (req, res) => {
   }
 });
 
-router.post("/cutResource", async (req, res) => {
+router.post("/cutResource", requireAdmin, async (req, res) => {
   console.log("hello");
   try {
     // Fetch all teams
@@ -632,29 +706,45 @@ router.post("/cutResource", async (req, res) => {
 });
 
 
-router.post("/bankTransfer", async (req, res) => {
-  const {targetTeam, dollar} = req.body;
-  const team = await Team.findOne({
-    id: targetTeam
-  });
+router.post("/bankTransfer", requireOperator, async (req, res) => {
+  const targetTeam = Number(req.body.targetTeam);
+  const dollar = Number(req.body.dollar);
+  if (!Number.isInteger(targetTeam) || !Number.isFinite(dollar) || dollar === 0) {
+    return res.status(400).json({ error: "Select a valid team and non-zero amount" });
+  }
+
+  const team = await Team.findOne({ id: targetTeam });
+  if (!team) return res.status(404).json({ error: "Team not found" });
+  if (dollar > 0 && team.money < dollar) {
+    return res.status(400).json({ error: "Not enough cash" });
+  }
+  if (dollar < 0 && team.bank < Math.abs(dollar)) {
+    return res.status(400).json({ error: "Not enough money in the bank" });
+  }
 
   team.money -= dollar;
   team.bank += dollar;
   await team.save();
 
-  res.json("Success").status(200);
+  return res.status(200).json(team);
 });
 
-router.post ("/bankControl", async (req, res) => {
-  const {targetTeam, dollar} = req.body;
-  const team = await Team.findOne({
-    id: targetTeam
-  });
+router.post ("/bankControl", requireOperator, async (req, res) => {
+  const targetTeam = Number(req.body.targetTeam);
+  const dollar = Number(req.body.dollar);
+  if (!Number.isInteger(targetTeam) || !Number.isFinite(dollar) || dollar === 0) {
+    return res.status(400).json({ error: "Select a valid team and non-zero amount" });
+  }
+  const team = await Team.findOne({ id: targetTeam });
+  if (!team) return res.status(404).json({ error: "Team not found" });
+  if (team.bank + dollar < 0) {
+    return res.status(400).json({ error: "Bank balance cannot become negative" });
+  }
 
   team.bank += dollar;
   await team.save();
 
-  res.json("Success").status(200);
+  return res.status(200).json(team);
 });
 
 router
@@ -662,7 +752,7 @@ router
     const setting = await Pair.findOne({ key: "bankInterestRate" });
     res.status(200).json({ rate: Number(setting?.value ?? 1) });
   })
-  .post("/interest", async (req, res) => {
+  .post("/interest", requireAdmin, async (req, res) => {
     const rate = Number(req.body.rate);
     if (!Number.isFinite(rate) || rate < 0) {
       return res.status(400).json({ error: "Interest rate must be a non-negative number" });
@@ -707,7 +797,7 @@ router.get("/reset/options", (req, res) => {
   res.status(200).json(RESET_SCOPE_OPTIONS);
 });
 
-router.post("/reset", async (req, res) => {
+router.post("/reset", requireAdmin, async (req, res) => {
   const { scopes, adminPassword } = req.body;
 
   if (typeof adminPassword !== "string" || adminPassword.length === 0) {
@@ -734,10 +824,9 @@ router.post("/reset", async (req, res) => {
 });
 
 router
-  .post("/event", async (req, res) => {
+  .post("/event", requireAdmin, async (req, res) => {
     const { id, branch, content } = req.body;
-    const pair = await Pair.findOne({ key: "currentEvent" });
-    if (!pair) return res.status(403).json({ error: "Event state not initialized" });
+    const session = await mongoose.startSession();
 
     try {
       if (content !== undefined && typeof content !== "string") {
@@ -746,25 +835,28 @@ router
       if (content?.trim().length > 2000) {
         return res.status(400).json({ error: "Event content is limited to 2,000 characters" });
       }
-      const eventPayload = await executeEvent2026({
-        eventId: id,
-        branch,
-        announcement: content,
-      });
-      if (Number(id) !== 0) {
-        const teams = await Team.find();
-        for (const team of teams) {
-          team.deposit = Math.round(team.deposit * 0.15) * 10;
-          await team.save();
+      let eventPayload;
+      await session.withTransaction(async () => {
+        const pair = await Pair.findOne({ key: "currentEvent" }).session(session);
+        if (!pair) {
+          throw Object.assign(new Error("Event state not initialized"), { status: 403 });
         }
-      }
-      pair.value = id;
-      await pair.save();
+        eventPayload = await executeEvent2026({
+          eventId: id,
+          branch,
+          announcement: content,
+          session,
+        });
+        pair.value = Number(id);
+        await pair.save({ session });
+      });
       req.io.emit("broadcast", eventPayload);
       return res.status(200).json({ message: "Success", event: eventPayload });
     } catch (error) {
       console.error("Failed to execute event", error);
       return res.status(error.status ?? 500).json({ error: error.message });
+    } finally {
+      await session.endSession();
     }
   })
   .get("/event", async (req, res) => {
@@ -796,7 +888,7 @@ router
 //   res.json(team).status(200);
 // });
 
-router.post("/tape", async (req, res) => {
+router.post("/tape", requireOperator, async (req, res) => {
   const teams = await Team.find();
   for (let i = 0; i < teams.length; i++) {
     teams[i].money -= 5000;
@@ -809,7 +901,7 @@ router.post("/tape", async (req, res) => {
   res.json("Success").status(200);
 });
 
-router.post("/goldenFruit", async (req, res) => {
+router.post("/goldenFruit", requireOperator, async (req, res) => {
   const { building } = req.body;
   const land = await Land.find({ id: building });
   const level = land[0].level;
@@ -829,7 +921,7 @@ router.post("/goldenFruit", async (req, res) => {
 });
 
 router
-  .post("/add", async (req, res) => {
+  .post("/add", requireOperator, async (req, res) => {
     const { id, dollar, jeff, jeffTeam } = req.body;
     const team = await Team.findAndCheckValid(id);
     const targetTeam = await Team.find({ id: jeffTeam });
@@ -869,7 +961,7 @@ router
     res.json(data).status(200);
   });
 
-router.post("/series", async (req, res) => {
+router.post("/series", requireOperator, async (req, res) => {
   const { teamId, area } = req.body;
   const count = await (
     await Land.find({ area, owner: teamId })
@@ -877,28 +969,7 @@ router.post("/series", async (req, res) => {
   res.json({ count }).status(200);
 });
 
-router.post("/deposit", async (req, res) => {
-  const { id, dollar } = req.body;
-  const team = await Team.find({ id: id });
-  team[0].money -= dollar;
-  team[0].deposit += dollar;
-  await team[0].save();
-  res.json("Success").status(200);
-});
-
-router.post("/accounting", async (req, res) => {
-  const teams = await Team.find().sort({ id: 1 });
-  for (let i = 0; i < teams.length; i++) {
-    if (teams[i].deposit >= 0) teams[i].money += teams[i].deposit;
-    else teams[i].money += teams[i].deposit * 1.3;
-
-    teams[i].deposit = 0;
-    await teams[i].save();
-  }
-  res.json("Success").status(200);
-});
-
-router.post("/rob", async (req, res) => {
+router.post("/rob", requireOperator, async (req, res) => {
   const { id } = req.body;
   const team = await Team.find({ id: id });
   const teams = await Team.find().sort({ money: 1 });
@@ -922,7 +993,7 @@ router.post("/rob", async (req, res) => {
   }
 });
 
-router.post("/equility", async (req, res) => {
+router.post("/equility", requireOperator, async (req, res) => {
   const { id } = req.body;
   const team = await Team.find({ id: id });
   const teams = await Team.find().sort({ money: 1 });
@@ -955,7 +1026,7 @@ router.post("/equility", async (req, res) => {
   res.json("Success").status(200);
 });
 
-router.post("/handleBuff1", async (req, res) => {
+router.post("/handleBuff1", requireOperator, async (req, res) => {
   const { name } = req.body;
   console.log(name);
   const land = await Land.findOne({ name });
@@ -964,7 +1035,7 @@ router.post("/handleBuff1", async (req, res) => {
   res.json("Success").status(200);
 });
 
-router.post("/handleBuff2", async (req, res) => {
+router.post("/handleBuff2", requireOperator, async (req, res) => {
   const { name } = req.body;
   const land = await Land.findOne({ name });
   const rent = land.rent.map((amount) => amount * 2);
@@ -972,7 +1043,7 @@ router.post("/handleBuff2", async (req, res) => {
   res.json("Success").status(200);
 });
 
-router.post("/handleDeBuff", async (req, res) => {
+router.post("/handleDeBuff", requireOperator, async (req, res) => {
   const { name } = req.body;
   const land = await Land.findOne({ name });
   const divisor = land.buffed === 1 ? 1.5 : land.buffed === 2 ? 2 : 1;
@@ -1010,7 +1081,7 @@ const calcTransfer = async (from, to, amount, isEstate) => {
   return { from: FromAmount, to: ToAmount };
 };
 
-router.post("/transfer", async (req, res) => {
+router.post("/transfer", requireOperator, async (req, res) => {
   const { from, to, IsEstate, dollar } = req.body;
   //update team status
   await Team.findAndCheckValid(from);
@@ -1068,7 +1139,7 @@ router.get("/transfer", async (req, res) => {
 //   console.log("hawkEye updated");
 // }
 
-router.post("/ownership", async (req, res) => {
+router.post("/ownership", requireOperator, async (req, res) => {
   const { teamId, land, landId, level, development } = req.body;
   const targetLand = landId
     ? await Land.findOne({ id: landId })
@@ -1113,7 +1184,7 @@ router.post("/ownership", async (req, res) => {
   });
 });
 
-router.post("/calcbonus", async (req, res) => {
+router.post("/calcbonus", requireOperator, async (req, res) => {
   const { teamId, land, level } = req.body;
   const buildings = await Land.find({}).sort({ id: 1 });
   console.log(req.body);
@@ -1149,7 +1220,7 @@ router.post("/calcbonus", async (req, res) => {
   res.json("Success").status(200);
 });
 
-router.post("/aquire", async (req, res) => {
+router.post("/aquire", requireOperator, async (req, res) => {
   const { land, teamId } = req.body;
   const target = await Land.find({ name: land });
   const originOwner = target[0].owner;
@@ -1170,7 +1241,7 @@ router.get("/aquireBuilding", async (req, res) => {
   res.json(targetBuilding).status(200);
 });
 
-router.post("/exchange", async (req, res) => {
+router.post("/exchange", requireOperator, async (req, res) => {
   const { land, otherLand, teamId, otherTeamId } = req.body;
   const land_1 = await Land.find({ name: land });
   const land_2 = await Land.find({ name: otherLand });
@@ -1179,7 +1250,7 @@ router.post("/exchange", async (req, res) => {
   res.json("Success").status(200);
 });
 
-router.post("/shipRepair", async (req, res) => {
+router.post("/shipRepair", requireOperator, async (req, res) => {
   const { teamId } = req.body;
   console.log(teamId);
   const team = await Team.find({ id: teamId });
@@ -1193,7 +1264,7 @@ router.get("/allEffects", async (req, res) => {
   res.json(effects).status(200);
 });
 
-router.post("/effect", async (req, res) => {
+router.post("/effect", requireOperator, async (req, res) => {
   const { teamname, title } = req.body;
   const effect = await Effect.findOne({ title });
   if (!effect) {
@@ -1238,7 +1309,7 @@ router.post("/effect", async (req, res) => {
 });
 
 router
-  .post("/broadcast", async (req, res) => {
+  .post("/broadcast", requireOperator, async (req, res) => {
     const { title, description, level } = req.body;
     let time = Date.now();
     const broadcast = {
@@ -1318,8 +1389,7 @@ router.post("/login", async (req, res) => {
     console.log("login failed");
     return;
   }
-  const isOperator = ["npc", "admin"].includes(String(user.username).toLowerCase());
-  const token = isOperator ? createOperatorSession(user.username) : "";
+  const token = createAuthSession(user.username);
   res.status(200).send({ username: user.username, token });
   // null, npc, admin: String
 });

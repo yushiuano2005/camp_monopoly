@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from "react";
+import React, { useState, useContext, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Paper,
@@ -18,22 +18,17 @@ import {
   Button,
   FormControl,
 } from "@mui/material";
-import Loading from "../Loading";
 import SendIcon from "@mui/icons-material/Send";
 import RoleContext from "../useRole";
 import axios from "../axios";
 import TeamSelect from "../TeamSelect";
 
 const Resources = () => {
-  let flag = false;
   const [team, setTeam] = useState(-1);
-  const [teamToCheckBalance, setTeamToCheckBalance] = useState(0);
-  const [resourceToCheckQuan, setResourceToCheckQuan] = useState(0);
   const [mode, setMode] = useState(0);
   const [resourceId, setResourceId] = useState(-1);
-  const [number, setNumber] = useState(0);
-  const { roleId, teams, setTeams, setNavBarId, resources, setResources } =
-    useContext(RoleContext); // eslint-disable-line no-unused-vars
+  const [number, setNumber] = useState("");
+  const { setNavBarId, resources, setResources } = useContext(RoleContext);
 
   const navigate = useNavigate();
 
@@ -42,7 +37,7 @@ const Resources = () => {
     { id: "price", label: "Price", minWidth: "17vw", align: "center" },
   ];
 
-  const getResources = async () => {
+  const getResources = useCallback(async () => {
     axios
       .get("/resourceInfo")
       .then((res) => {
@@ -51,108 +46,60 @@ const Resources = () => {
       .catch((error) => {
         console.error(error);
       });
-  };
+  }, [setResources]);
 
-  const getCheck = async (team, resourceId) => {
-    axios
-      .get("/team/" + team)
-      .then((res) => {
-        console.log(resourceId);
-        console.log(res.data.resources[resourceId - 1]);
-
-        setTeamToCheckBalance(res.data.money);
-        setResourceToCheckQuan(res.data.resources[resourceId - 1]);
-
-        console.log(resourceToCheckQuan);
-      })
-      .catch((error) => {
-        console.error(error);
-      });
-  };
-      
-  
   const handleClick = async () => {
+    const quantity = Number(number);
+    if (team < 1 || resourceId < 0 || !Number.isInteger(quantity) || quantity <= 0) {
+      alert("Select a team and enter a positive whole-number quantity.");
+      return;
+    }
     const payload = {
       teamId: team,
-      resourceId: resourceId,
-      number: number,
-      mode: mode, // 0 for sell, 1 for buy
+      resourceId,
+      number: quantity,
+      mode,
     };
-
-    console.log(payload);
-    //check whether the trade is valid
     try {
-      await getCheck(team, resourceId);
+      await axios.post("/sellResource", payload);
+      navigate("/teams");
+      setNavBarId(2);
     } catch (error) {
-      console.error(error);
+      alert(error.response?.data?.error || "Bitcoin trade failed.");
     }
-
-    if(mode === 1){//buy
-      if(teamToCheckBalance < resources[resourceId].price * number){
-        alert("Not enough money to buy");
-        return;
-      }
-    }else{//sell
-      if(resourceToCheckQuan < number){
-        alert("Not enough resource to sell");
-        return;
-      }
-    }
-
-    await axios.post("/sellResource", payload);
-    navigate("/teams");
-    setNavBarId(2);
   };
 
   const handleControlClick = async () => {
+    const quantity = Number(number);
+    if (team < 1 || resourceId < 0 || !Number.isInteger(quantity) || quantity <= 0) {
+      alert("Select a team and enter a positive whole-number quantity.");
+      return;
+    }
     const payload = {
       teamId: team,
-      resourceId: resourceId,
-      number: number,
-      mode: mode, // 0 for -, 1 for +
+      resourceId,
+      number: quantity,
+      mode,
     };
-
-    await axios.post("/controlResource", payload);
-    navigate("/teams");
-    setNavBarId(2);
-  };
-
-  const handleTeam = (team) => {
-    if (team === 0) {
-      setNumber(0);
-    }
-    setTeam(team);
-
     try {
-      getCheck(team, resourceId);
+      await axios.post("/controlResource", payload);
+      navigate("/teams");
+      setNavBarId(2);
     } catch (error) {
-      console.error(error);
+      alert(error.response?.data?.error || "Bitcoin balance correction failed.");
     }
-    
   };
 
-  const updatePrices = async () => {
-    // console.log(resources);
-    // console.log(1);
-    // const payload = { resources: resources };
-    await axios.post("/resource");
-  };
+  const handleTeam = (nextTeam) => setTeam(nextTeam);
 
   useEffect(() => {
-    // getResourcesQuan();
     getResources();
-    getCheck(team, resourceId);
     const update = setInterval(() => {
-      // getResourcesQuan();
       getResources();
-      getCheck(team, resourceId);
-      flag = !flag;
-      if (flag) updatePrices();
-      console.log("update");
     }, 80000);
 
     return () => clearInterval(update);
-  }, []);
+  }, [getResources]);
 
   return (
       <>
@@ -195,8 +142,8 @@ const Resources = () => {
                   }}
                 >
                   <MenuItem value={-1}>Select Resource</MenuItem>
-                  {resources.map((resource, index) => (
-                    <MenuItem value={index} key={index}>
+                  {resources.map((resource) => (
+                    <MenuItem value={resource.id} key={resource.id}>
                       {resource.name}
                     </MenuItem>
                   ))}
@@ -228,7 +175,8 @@ const Resources = () => {
                   required
                   label="enter the amount"
                   id="number"
-                  type="text"
+                  type="number"
+                  inputProps={{ min: 1, step: 1 }}
                   autoFocus
                   onChange={(e) => {
                     setNumber(e.target.value);
@@ -243,7 +191,7 @@ const Resources = () => {
               >
                 <Button
                   variant="contained"
-                  disabled={team === -1 || number === -1}
+                  disabled={team === -1 || resourceId === -1 || Number(number) <= 0}
                   onClick={handleClick}
                   fullWidth
                   sx={{ marginTop: 2 }}
@@ -297,8 +245,8 @@ const Resources = () => {
                 }}
               >
                 <MenuItem value={-1}>Select Resource</MenuItem>
-                {resources.map((resource, index) => (
-                  <MenuItem value={index} key={index}>
+                {resources.map((resource) => (
+                  <MenuItem value={resource.id} key={resource.id}>
                     {resource.name}
                   </MenuItem>
                 ))}
@@ -331,7 +279,8 @@ const Resources = () => {
                   label="enter the amount"
                   id="number"
                   // autoComplete="enter the number"
-                  type="text"
+                  type="number"
+                  inputProps={{ min: 1, step: 1 }}
                   // sx={{ marginTop: 1, marginBottom: 1 }}
                   autoFocus
                   onChange={(e) => {
@@ -346,7 +295,7 @@ const Resources = () => {
             >
               <Button
                 variant="contained"
-                disabled={team === -1 || number === -1}
+                disabled={team === -1 || resourceId === -1 || Number(number) <= 0}
                 onClick={handleControlClick}
                 fullWidth
                 sx={{ marginTop: 2 }}

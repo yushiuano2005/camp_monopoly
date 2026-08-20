@@ -233,11 +233,11 @@ const BankTransfer = () => {
         }}
       >
         <Typography component="h1" variant="h5" sx={{ marginBottom: 0 }}>
-          Add Deposit
+          Direct Bank Balance Correction
         </Typography>
 
         <Typography component="h1" variant="subtitle2" sx={{ color: 'gray' }}>
-          Directly control deposit in bank.
+          Directly correct a team's bank balance without moving cash. Use only to fix an operator error.
         </Typography>
           <FormControl variant="standard" sx={{ minWidth: 250 }}>
             <TeamSelect
@@ -249,7 +249,7 @@ const BankTransfer = () => {
 
             <TextField
               required
-              label="BankAmount"
+              label="Bank balance adjustment"
               id="bankAmount"
               value={bankAmount}
               sx={{ marginTop: 2, marginBottom: 1 }}

@@ -34,7 +34,7 @@ const Interest = () => {
       const { data } = await axios.post("/interest", { rate: numericRate });
       setCurrentRate(Number(data.rate));
       setRate("");
-      setMessage({ open: true, severity: "success", text: `Applied a ${Number(data.rate).toFixed(2)}× multiplier to every team's bank balance.` });
+      setMessage({ open: true, severity: "success", text: `Applied a manual ${Number(data.rate).toFixed(2)}× correction to every team's bank balance.` });
     } catch (error) {
       setMessage({ open: true, severity: "error", text: "Unable to apply bank interest. Check the backend status before retrying." });
     } finally {
@@ -46,10 +46,10 @@ const Interest = () => {
     <Container component="main" maxWidth="sm" sx={{ pt: 4, pb: 10 }}>
       <Card variant="outlined">
         <CardContent>
-          <Typography variant="h5" fontWeight={700} gutterBottom>Bank Interest</Typography>
+          <Typography variant="h5" fontWeight={700} gutterBottom>Manual Bank Interest Correction</Typography>
           <Typography color="text.secondary">Latest applied rate: {currentRate.toFixed(2)}× ({((currentRate - 1) * 100).toFixed(0)}%)</Typography>
           <Alert severity="warning" sx={{ my: 2 }}>
-            Submitting immediately multiplies all nine teams' bank balances. Use 1.1 for +10% or 0.9 for -10%.
+            Major Events already compound bank interest once per round. Use this page only to correct a missed or incorrect settlement.
           </Alert>
           <TextField
             fullWidth

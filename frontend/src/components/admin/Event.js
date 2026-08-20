@@ -113,7 +113,7 @@ const Event = () => {
             </Select>
             {selectedBranches.length > 0 ? (
               <FormControl variant="standard" sx={{ marginTop: 2 }}>
-                <InputLabel id="branch-title">事件分支</InputLabel>
+                <InputLabel id="branch-title">Event Branch</InputLabel>
                 <Select
                   value={branch}
                   labelId="branch-title"

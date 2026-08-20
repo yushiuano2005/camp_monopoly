@@ -38,7 +38,7 @@ const Bank = () => {
   const columns = [
     { id: "teamname", label: "Team", minWidth: "10vw", align: "center" },
     // { id: "dice", label: "Dice", minWidth: "5vw", align: "center" },
-    { id: "deposit", label: "Deposit", minWidth: "17vw", align: "center" },
+    { id: "bank", label: "Bank balance", minWidth: "17vw", align: "center" },
     // { id: "resources", label: "Resources", minWidth: "17vw", align: "center" },
   ];
 
@@ -65,16 +65,15 @@ const Bank = () => {
 
   const handleSubmit = async () => {
     const payload = {
-      id: team,
+      targetTeam: team,
       dollar: parseInt(amount) ? parseInt(amount) : 0,
     };
-    await axios.post("/deposit", payload);
+    await axios.post("/bankTransfer", payload);
     navigate("/teams");
   };
 
   const handleAccounting = async () => {
-    await axios.post("/accounting");
-    navigate("/teams");
+    navigate("/interest");
   };
 
   const getTeams = async () => {
@@ -133,7 +132,7 @@ const Bank = () => {
               }}
             >
               <Typography component="h1" variant="h5" sx={{ marginBottom: 0 }}>
-                Deposit
+                Bank Operations
               </Typography>
               <FormControl variant="standard" sx={{ minWidth: 250 }}>
                 <TeamSelect
@@ -158,8 +157,10 @@ const Bank = () => {
                     ) {
                       if (Math.abs(parseInt(e.target.value)) > 1000000) {
                         setErrorMessage("Too Large");
-                      }else if(parseInt(e.target.value) > 0 && Math.abs(parseInt(e.target.value)) > teamData.deposit) {
-                        setErrorMessage("Not enough deposit");
+                      }else if(parseInt(e.target.value) > 0 && Math.abs(parseInt(e.target.value)) > teamData.money) {
+                        setErrorMessage("Not enough cash");
+                      }else if(parseInt(e.target.value) < 0 && Math.abs(parseInt(e.target.value)) > teamData.bank) {
+                        setErrorMessage("Not enough money in the bank");
                       }
                       else {
                         handleAmount(e.target.value ? e.target.value : "");
