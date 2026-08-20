@@ -1,123 +1,96 @@
-import React, { useState, useContext, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Paper,
-  Container,
-  InputLabel,
-  Select,
-  MenuItem,
-  TextField,
-  Typography,
+  Alert,
   Box,
   Button,
-  FormControl,
-  TableContainer,
-  TableBody,
-  TableRow,
-  TableCell,
-  Table,
-  // Divider,
+  Card,
+  CardContent,
+  Container,
+  Snackbar,
+  TextField,
+  Typography,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
-import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
-import PropertyCard from "../Properties/PropertyCard";
-import RoleContext from "../useRole";
 import axios from "../axios";
-import TeamSelect from "../TeamSelect";
 
 const Interest = () => {
-  const [rate, setRate] = useState(0);
+  const [rate, setRate] = useState("");
+  const [currentRate, setCurrentRate] = useState(1);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState({ open: false, severity: "success", text: "" });
 
-  const [errorMessage, setErrorMessage] = useState("");
-  const [error, setError] = useState(false);
-  const {setNavBarId } = useContext(RoleContext);
-  const navigate = useNavigate();
+  useEffect(() => {
+    axios.get("/interest").then(({ data }) => setCurrentRate(Number(data.rate ?? 1))).catch(() => {});
+  }, []);
 
+  const numericRate = Number(rate);
+  const isValid = rate !== "" && Number.isFinite(numericRate) && numericRate >= 0;
+  const percentage = useMemo(() => (isValid ? (numericRate - 1) * 100 : 0), [isValid, numericRate]);
 
-  const handleClick = async () => {
+  const handleSubmit = async () => {
+    if (!isValid || submitting) return;
+    setSubmitting(true);
     try {
-      const payload = {
-        rate: Number(rate),
-      };
-  
-      // Await the API call
-      await axios.post("/interest", payload);
+      const { data } = await axios.post("/interest", { rate: numericRate });
+      setCurrentRate(Number(data.rate));
+      setRate("");
+      setMessage({ open: true, severity: "success", text: `Applied a ${Number(data.rate).toFixed(2)}× multiplier to every team's bank balance.` });
     } catch (error) {
-      console.error("Error posting interest:", error);
-      // Optionally, handle the error (e.g., show an error message to the user)
+      setMessage({ open: true, severity: "error", text: "Unable to apply bank interest. Check the backend status before retrying." });
+    } finally {
+      setSubmitting(false);
     }
-
-    alert("Interest added");
-    // Navigate after the API call completes
-    navigate("/teams");
-    setNavBarId(2);
   };
-  
 
   return (
-    <Container component="main" maxWidth="xs">
-      <Box
-        sx={{
-          marginTop: 9,
-          marginBottom: 9,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        <Typography component="h1" variant="h5">
-            Interest Control
-        </Typography>
-        <Typography component="h1" variant="subtitle2" sx={{ color: 'gray' }}>
-            Enter the interest rate.<br/>
-            Result = current * rate. (Ex: 1.1 = 10%)
-        </Typography>
-        <FormControl
-          variant="standard"
-          sx={{ minWidth: "250px", marginTop: 2 }}
-        >
+    <Container component="main" maxWidth="sm" sx={{ pt: 4, pb: 10 }}>
+      <Card variant="outlined">
+        <CardContent>
+          <Typography variant="h5" fontWeight={700} gutterBottom>Bank Interest</Typography>
+          <Typography color="text.secondary">Latest applied rate: {currentRate.toFixed(2)}× ({((currentRate - 1) * 100).toFixed(0)}%)</Typography>
+          <Alert severity="warning" sx={{ my: 2 }}>
+            Submitting immediately multiplies all nine teams' bank balances. Use 1.1 for +10% or 0.9 for -10%.
+          </Alert>
           <TextField
+            fullWidth
             required
-            error={error}
-            label="Rate"
-            id="rate"
+            label="Interest multiplier"
             value={rate}
-            onChange={(e) => {
-              const re = /^\d*\.?\d*$/;
-              if (e.target.value === "" || re.test(e.target.value)) {
-                setRate(e.target.value ? e.target.value : "");
-                setErrorMessage("");
-                setError(false);
-              } else {
-                setErrorMessage("Please enter a valid number");
-                setError(true);
-              }
-            }}
-            helperText={errorMessage}
-            FormHelperTextProps={{ error: true }}
+            type="number"
+            inputProps={{ min: 0, step: 0.01 }}
+            onChange={(event) => setRate(event.target.value)}
+            error={rate !== "" && !isValid}
+            helperText={rate !== "" && !isValid ? "Enter a number greater than or equal to zero." : "Example: 1.1 = increase by 10%"}
           />
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "center",
-              marginTop: 1,
-            }}
-          >
-          </Box>
-
+          {isValid && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
+              <Typography>Result: current bank balance × {numericRate.toFixed(2)}</Typography>
+              <Typography fontWeight={700} color={percentage >= 0 ? "success.main" : "error.main"}>
+                {percentage >= 0 ? "Increase" : "Decrease"} {Math.abs(percentage).toFixed(0)}%
+              </Typography>
+            </Box>
+          )}
           <Button
             variant="contained"
-            disabled={rate === 0}
-            onClick={handleClick}
+            startIcon={<SendIcon />}
+            disabled={!isValid || submitting}
+            onClick={handleSubmit}
             fullWidth
-            sx={{ marginTop: 1 }}
+            sx={{ mt: 2 }}
           >
-            <SendIcon />
+            {submitting ? "Applying…" : "Apply to all teams"}
           </Button>
-        </FormControl>
-      </Box>
+        </CardContent>
+      </Card>
+      <Snackbar
+        open={message.open}
+        autoHideDuration={5000}
+        onClose={() => setMessage((state) => ({ ...state, open: false }))}
+      >
+        <Alert severity={message.severity}>{message.text}</Alert>
+      </Snackbar>
     </Container>
   );
 };
+
 export default Interest;

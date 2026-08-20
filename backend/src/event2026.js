@@ -2,6 +2,7 @@ import Event from "../models/event.js";
 import Land from "../models/land.js";
 import Resource from "../models/resource.js";
 import Team from "../models/team.js";
+import Pair from "../models/pair.js";
 import { getLargePropertyGroup } from "./largeProperties.js";
 
 const EVENT_RESOURCE_PRICES = {
@@ -30,6 +31,11 @@ const applyBankRate = async (rate) => {
     team.bank = Math.round(team.bank * rate);
     await team.save();
   }
+  await Pair.findOneAndUpdate(
+    { key: "bankInterestRate" },
+    { value: rate },
+    { upsert: true, new: true }
+  );
 };
 
 const swapCashByRank = async () => {
@@ -64,13 +70,20 @@ export const getEventPayload = (event) => {
   const selected = payload.branches?.find(
     (branch) => branch.id === payload.selectedBranch
   );
-  const descriptions = [selected?.description, payload.description, payload.note]
+  const descriptions = [
+    Number(payload.id) === 10 ? selected?.title : null,
+    selected?.description,
+    payload.description,
+    payload.note,
+  ]
     .filter(Boolean)
     .join("\n");
 
+  const eventTitle = Number(payload.id) === 10 ? "最後的戰役" : payload.title;
+
   return {
     ...payload,
-    title: selected?.title ?? payload.title,
+    title: Number(payload.id) === 10 ? eventTitle : selected?.title ?? eventTitle,
     description: descriptions,
   };
 };

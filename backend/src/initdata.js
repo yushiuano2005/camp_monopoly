@@ -12,17 +12,6 @@ import Effect from "../models/effect.js";
 
 dotenv.config();
 
-const mongoUrl = process.env.MONGODB_URI || process.env.MONGO_URL;
-if (!mongoUrl) {
-  throw new Error("找不到 MONGODB_URI，請先設定 backend/.env");
-}
-
-const db = mongoose.connection;
-mongoose.connect(mongoUrl, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-
 const users = [
   {
     username: "admin",
@@ -592,7 +581,7 @@ const events = [
   },
   {
     id: 10,
-    title: "資本主義／共產主義最終結果",
+    title: "最後的戰役",
     description:
       "手頭現金第一名與最後一名依序對調，布萊德彼特幣價值變為10%；由場控選擇勝方",
     branches: [
@@ -708,49 +697,118 @@ const pairs = [
     key: "phase",
     value: 1,
   },
+  {
+    key: "bankInterestRate",
+    value: 1,
+  },
 ];
 
-db.on("error", console.error.bind(console, "connection error:"));
-db.once("open", async () => {
+export const RESET_SCOPE_OPTIONS = [
+  {
+    id: "teams",
+    label: "Team data",
+    description: "Recreate nine teams and restore cash, bank, deposit, resources, and bonus states.",
+  },
+  {
+    id: "lands",
+    label: "Property data",
+    description: "Recreate all 37 spaces and clear ownership, levels, bonuses, and large-property development.",
+  },
+  {
+    id: "resources",
+    label: "Resources and market price",
+    description: "Recreate resource data and restore Brad Pitt Bitcoin to the initial price of 10,000.",
+  },
+  {
+    id: "events",
+    label: "Major events",
+    description: "Recreate the 2026 events, branches, event notes, and selected branches.",
+  },
+  {
+    id: "notifications",
+    label: "Notifications and announcements",
+    description: "Clear announcements and restore the initial welcome notification.",
+  },
+  {
+    id: "effects",
+    label: "Special effects",
+    description: "Clear special-effect data created or active during the game.",
+  },
+  {
+    id: "gameState",
+    label: "Global game state",
+    description: "Reset the current event, notification sequence, Hawk Eye team, game phase, and latest bank rate.",
+  },
+];
+
+const replaceCollection = async (Model, rows) => {
+  await Model.deleteMany({});
+  await Promise.all(rows.map((row) => new Model(row).save()));
+};
+
+const resetActions = {
+  teams: () => replaceCollection(Team, teams),
+  lands: () => replaceCollection(Land, lands),
+  resources: () => replaceCollection(Resource, resources),
+  events: () => replaceCollection(Event, events),
+  notifications: async () => {
+    await replaceCollection(Notification, notifications);
+    await Broadcast.deleteMany({});
+  },
+  effects: () => Effect.deleteMany({}),
+  gameState: () => replaceCollection(Pair, pairs),
+};
+
+export const resetGameData = async (requestedScopes, { includeUsers = false } = {}) => {
+  if (!Array.isArray(requestedScopes) || requestedScopes.length === 0) {
+    const error = new Error("Select at least one reset scope");
+    error.status = 400;
+    throw error;
+  }
+
+  const scopes = [...new Set(requestedScopes)];
+  const validScopes = new Set(RESET_SCOPE_OPTIONS.map((option) => option.id));
+  const invalidScopes = scopes.filter((scope) => !validScopes.has(scope));
+  if (invalidScopes.length > 0) {
+    const error = new Error(`Unknown reset scope: ${invalidScopes.join(", ")}`);
+    error.status = 400;
+    throw error;
+  }
+
+  if (includeUsers) {
+    await replaceCollection(User, users);
+  }
+  for (const scope of scopes) {
+    await resetActions[scope]();
+  }
+  return scopes;
+};
+
+const runInitData = async () => {
+  const mongoUrl = process.env.MONGODB_URI || process.env.MONGO_URL;
+  if (!mongoUrl) {
+    throw new Error("找不到 MONGODB_URI，請先設定 backend/.env");
+  }
+
+  await mongoose.connect(mongoUrl, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  });
   console.log("db connected");
-  await Team.deleteMany({});
-  await Land.deleteMany({});
-  await Resource.deleteMany({});
-  await User.deleteMany({});
-  await Event.deleteMany({});
-  await Pair.deleteMany({});
-  await Notification.deleteMany({});
-  await Effect.deleteMany({});
-  await Broadcast.deleteMany({});
-  console.log("delete done");
-
-  await Promise.all(users.map((user) => new User(user).save()));
-  console.log("users created");
-
-  await Promise.all(lands.map((ground) => new Land(ground).save()));
-  console.log("lands created");
-
-  await Promise.all(resources.map((row) => new Resource(row).save()));
-  console.log("resources created");
-
-  await Promise.all(teams.map((row) => new Team(row).save()));
-  console.log("teams created");
-
-  await Promise.all(events.map((row) => new Event(row).save()));
-  console.log("events created");
-
-  await Promise.all(pairs.map((row) => new Pair(row).save()));
-  console.log("pairs created");
-
-  await Promise.all(notifications.map((row) => new Notification(row).save()));
-  console.log("notifications created");
-
-  // effects.forEach(async (row) => {
-  //   await new Effect(row).save();
-  // });
-  // console.log("effects created");
-
+  const allScopes = RESET_SCOPE_OPTIONS.map((option) => option.id);
+  await resetGameData(allScopes, { includeUsers: true });
   console.log("finish saving data");
-  await mongoose.disconnect();
-});
+};
+
+const normalizedEntry = process.argv[1]?.replace(/\\/g, "/");
+if (normalizedEntry?.endsWith("/src/initdata.js")) {
+  runInitData()
+    .catch((error) => {
+      console.error("初始化資料失敗", error);
+      process.exitCode = 1;
+    })
+    .finally(async () => {
+      await mongoose.disconnect();
+    });
+}
 

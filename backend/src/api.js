@@ -9,6 +9,7 @@ import Effect from "../models/effect.js";
 import Broadcast from "../models/broadcast.js";
 import Resource from "../models/resource.js";
 import { executeEvent2026, getEventPayload } from "./event2026.js";
+import { RESET_SCOPE_OPTIONS, resetGameData } from "./initdata.js";
 import {
   getDevelopmentConfig,
   getLargePropertyGroup,
@@ -549,54 +550,71 @@ router.post ("/bankControl", async (req, res) => {
   res.json("Success").status(200);
 });
 
-router.post("/interest", async(req, res) => {
-  const {rate} = req.body;
-  const teams = await Team.find();
+router
+  .get("/interest", async (req, res) => {
+    const setting = await Pair.findOne({ key: "bankInterestRate" });
+    res.status(200).json({ rate: Number(setting?.value ?? 1) });
+  })
+  .post("/interest", async (req, res) => {
+    const rate = Number(req.body.rate);
+    if (!Number.isFinite(rate) || rate < 0) {
+      return res.status(400).json({ error: "Interest rate must be a non-negative number" });
+    }
 
-  for (let i = 0; i < teams.length; i++) {
-    teams[i].bank = Math.round(teams[i].bank * Number(rate));
-    await teams[i].save();
+    const teams = await Team.find();
+    for (const team of teams) {
+      team.bank = Math.round(team.bank * rate);
+      await team.save();
+    }
 
-    console.log(`team ${teams[i].teamname} bank: ${teams[i].bank}`);
-  }
+    await Pair.findOneAndUpdate(
+      { key: "bankInterestRate" },
+      { value: rate },
+      { upsert: true, new: true }
+    );
 
-  res.json("Success").status(200);
-});
+    return res.status(200).json({ message: "Interest applied", rate });
+  });
 
 router.get("/allEvents", async (req, res) => {
   const events = await Event.find().sort({ id: 1 });
-  res.json(events).status(200);
+  res.status(200).json(
+    events.map((event) => {
+      const data = event.toObject();
+      return Number(data.id) === 10 ? { ...data, title: "最後的戰役" } : data;
+    })
+  );
 });
 
-router.post("/reset", async(req, res) =>{
-  console.log("RESET");
+router.get("/reset/options", (req, res) => {
+  res.status(200).json(RESET_SCOPE_OPTIONS);
+});
 
-  //reset everything
-  const teams = await Team.find();
-  const resources = await Resource.find();
+router.post("/reset", async (req, res) => {
+  const { scopes, adminPassword } = req.body;
 
-  for(let i = 0; i < teams.length; i++) {
-    teams[i].money = 40000;
-    teams[i].bank = 0;
-    teams[i].resources.eecoin = 0;
-    await teams[i].save();
+  if (typeof adminPassword !== "string" || adminPassword.length === 0) {
+    return res.status(403).json({ error: "Admin password is required to reset data" });
   }
 
-  resources[0].price = 10000;
-
-  const lands = await Land.find();
-  //set all lands to 0
-  for(let i = 0; i < lands.length; i++) {
-    lands[i].owner = 0;
-    lands[i].level = 0;
-    if (isLargeProperty(lands[i].id)) {
-      lands[i].development = null;
-      lands[i].rent = [0, 0, 0];
-      lands[i].transportFee = [2000, 3000, 4000];
-    }
-    await lands[i].save();
+  const admin = await User.findAndValidate("admin", adminPassword);
+  if (!admin) {
+    return res.status(403).json({ error: "Incorrect Admin password; no data was reset" });
   }
-})
+
+  try {
+    const completedScopes = await resetGameData(scopes);
+    req.io.emit("gameReset", { scopes: completedScopes });
+    return res.status(200).json({
+      message: "Selected data restored to the initial state",
+      scopes: completedScopes,
+      usersReset: false,
+    });
+  } catch (error) {
+    console.error("Reset failed", error);
+    return res.status(error.status ?? 500).json({ error: error.message });
+  }
+});
 
 router
   .post("/event", async (req, res) => {

@@ -70,7 +70,7 @@ const events = [
   { id: 9, title: "馬斯克發廢文", description: "布萊德彼特幣暴跌，價值變為5%", branches: [] },
   {
     id: 10,
-    title: "資本主義／共產主義最終結果",
+    title: "最後的戰役",
     description: "手頭現金第一名與最後一名依序對調，布萊德彼特幣價值變為10%；由場控選擇勝方",
     branches: [
       { id: "capitalism", title: "資本主義獲勝：發動我們的財產", description: "毛澤東反擊川普，發動我們的財產" },
