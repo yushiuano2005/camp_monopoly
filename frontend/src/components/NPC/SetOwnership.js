@@ -1,242 +1,145 @@
-import React, { useState, useEffect, useContext } from "react";
-import KeyboardDoubleArrowDownIcon from "@mui/icons-material/KeyboardDoubleArrowDown";
-import { useNavigate } from "react-router-dom";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Container,
-  InputLabel,
-  Select,
-  MenuItem,
-  Typography,
+  Alert,
   Box,
   Button,
+  Card,
+  CardContent,
+  Chip,
+  Container,
   FormControl,
-  FormHelperText,
+  InputLabel,
+  MenuItem,
+  Select,
   Snackbar,
-  Alert,
+  Typography,
 } from "@mui/material";
-import { useSearchParams } from "react-router-dom";
-import SendIcon from "@mui/icons-material/Send";
-import PropertyCard from "../Properties/PropertyCard";
-import Loading from "../Loading";
-import RoleContext from "../useRole";
-import axios from "../axios";
+import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import TeamSelect from "../TeamSelect";
+import axios from "../axios";
+
+const uniqueProperties = (properties) => {
+  const seen = new Set();
+  return properties.filter((property) => {
+    const key = property.largePropertyGroup ? `large-${property.largePropertyGroup}` : `land-${property.id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 const SetOwnership = () => {
   const [team, setTeam] = useState(-1);
-  const [building, setBuilding] = useState(-1);
-  const [buildingData, setBuildingData] = useState({});
-  const [level, setLevel] = useState(1);
+  const [teamData, setTeamData] = useState(null);
+  const [properties, setProperties] = useState([]);
+  const [propertyId, setPropertyId] = useState(-1);
   const [development, setDevelopment] = useState("");
-  const [prefill, setPrefill] = useState(false);
-  const [open, setOpen] = useState(false);
-  const { roleId, filteredBuildings, setNavBarId } = useContext(RoleContext);
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams(); // eslint-disable-line no-unused-vars
-  const prefillTeams = searchParams.get("team");
-  const prefillBuilding = searchParams.get("id");
-  // console.log(prefillBuilding);
-  // console.log(prefillTeams);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState({ open: false, severity: "success", text: "" });
 
-  const isLargeProperty =
-    Boolean(buildingData.largePropertyGroup) ||
-    [13, 14, 26, 27].includes(Number(buildingData.id));
+  const loadProperties = useCallback(async () => {
+    const { data } = await axios.get("/land");
+    setProperties(uniqueProperties(data.filter((item) => ["Building", "SpecialBuilding"].includes(item.type))));
+  }, []);
 
-  const handleClick = async () => {
-    const payload = {
-      teamId: team,
-      land: buildingData.name,
-      landId: buildingData.id,
-      level,
-      development,
-    };
-    await axios.post("/ownership", payload);
-    navigate("/properties?id=" + buildingData.id);
-    setNavBarId(3);
-    if (!isLargeProperty) await axios.post("/calcbonus", payload);
+  useEffect(() => { loadProperties(); }, [loadProperties]);
+
+  const handleTeam = async (teamId) => {
+    setTeam(teamId);
+    setPropertyId(-1);
+    const { data } = await axios.get(`/team/${teamId}`);
+    setTeamData(data);
   };
 
-  const handleTeam = (team) => {
-    if (team === 0) {
-      setLevel(0);
-    } else if (buildingData.type === "Building") {
-      setLevel(buildingData.development === "Park" ? 1 : buildingData.level + 1);
+  const availableProperties = useMemo(
+    () => properties.filter((property) => property.owner === 0),
+    [properties]
+  );
+
+  const selectedProperty = properties.find((property) => property.id === propertyId);
+  const isLargeProperty = Boolean(selectedProperty?.largePropertyGroup);
+  const price = Number(selectedProperty?.price?.buy || 0);
+  const currentCash = Number(teamData?.money || 0);
+  const nextCash = currentCash - price;
+  const canSubmit = team !== -1 && propertyId !== -1 && (!isLargeProperty || Boolean(development)) && nextCash >= 0;
+
+  const handleSubmit = async () => {
+    if (!canSubmit || submitting) return;
+    setSubmitting(true);
+    try {
+      await axios.post("/property/purchase", { teamId: team, landId: propertyId, development });
+      if (!isLargeProperty) await axios.post("/calcbonus", { teamId: team, land: selectedProperty.name, level: 1 });
+      const { data } = await axios.get(`/team/${team}`);
+      setTeamData(data);
+      await loadProperties();
+      setPropertyId(-1);
+      setDevelopment("");
+      setMessage({ open: true, severity: "success", text: "Property purchase completed." });
+    } catch (error) {
+      setMessage({ open: true, severity: "error", text: error.response?.data?.error || "Property transaction failed." });
+    } finally {
+      setSubmitting(false);
     }
-    setTeam(team);
   };
 
-  const handleBuilding = async (building) => {
-    const { data } = await axios.get("/land/" + building);
-    setBuilding(building);
-    setBuildingData(data);
-    setDevelopment(data.development || "");
-    if (data.type === "Building") {
-      setLevel(data.development === "Park" ? 1 : data.level + 1);
-    } else {
-      setLevel(0);
-    }
-  };
-
-  const handleClose = (e, reason) => {
-    if (reason === "clickaway") {
-      return;
-    }
-    setOpen(false);
-  };
-
-  useEffect(() => {
-    if (roleId < 10) {
-      navigate("/permission");
-    }
-    if (!prefill && prefillBuilding !== null && prefillTeams !== null) {
-      handleTeam(parseInt(prefillTeams));
-      handleBuilding(parseInt(prefillBuilding));
-      setPrefill(true);
-      console.log("prefilled");
-    } else {
-      setOpen(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefillBuilding, prefillTeams]);
-
-  if (filteredBuildings.length === 0) {
-    return <Loading />;
-  } else {
-    return (
-      <Container component="main" maxWidth="xs">
-        <Box
-          sx={{
-            marginTop: 10,
-            marginBottom: 10,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-          }}
-        >
-          <Typography component="h1" variant="h5">
-            Set Ownership
+  return (
+    <Container component="main" maxWidth="sm" sx={{ pt: 4, pb: 10 }}>
+      <Card variant="outlined">
+        <CardContent>
+          <Typography variant="h5" fontWeight={700} gutterBottom>Property Purchase</Typography>
+          <Typography color="text.secondary" sx={{ mb: 2 }}>
+            Record a property purchase. Property upgrades and direct cash adjustments are handled on separate pages.
           </Typography>
-          <FormControl variant="standard" sx={{ minWidth: 250, marginTop: 2 }}>
-            <InputLabel id="building">Building</InputLabel>
+          <TeamSelect label="Team" team={team} handleTeam={handleTeam} hasZero={false} />
+          <FormControl fullWidth sx={{ mt: 2 }} disabled={team === -1}>
+            <InputLabel id="property-trade-label">Property</InputLabel>
             <Select
-              value={building}
-              labelId="building"
-              onChange={(e) => {
-                handleBuilding(e.target.value);
-              }}
+              labelId="property-trade-label"
+              label="Property"
+              value={propertyId}
+              onChange={(event) => { setPropertyId(Number(event.target.value)); setDevelopment(""); }}
             >
-              <MenuItem value={-1}>Select Building</MenuItem>
-              {filteredBuildings.map((item) => (
-                <MenuItem value={item.id} key={item.id}>
-                  {item.id} {item.name}
+              <MenuItem value={-1}>Select a property</MenuItem>
+              {availableProperties.map((property) => (
+                <MenuItem value={property.id} key={property.id}>
+                  #{property.id} {property.name}{property.largePropertyGroup ? " (large property)" : ""}
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
-          {isLargeProperty ? (
-            <FormControl variant="standard" sx={{ minWidth: 250, marginTop: 2 }}>
-              <InputLabel id="development-label">大型地產建築</InputLabel>
-              <Select
-                value={development}
-                labelId="development-label"
-                disabled={team === 0 || Boolean(buildingData.development)}
-                onChange={(e) => setDevelopment(e.target.value)}
-              >
-                <MenuItem value="Hotel">飯店</MenuItem>
-                <MenuItem value="Transport">轉運站</MenuItem>
-                <MenuItem value="Park">公園</MenuItem>
+          {isLargeProperty && (
+            <FormControl fullWidth sx={{ mt: 2 }}>
+              <InputLabel id="development-label">Development</InputLabel>
+              <Select labelId="development-label" label="Development" value={development} onChange={(event) => setDevelopment(event.target.value)}>
+                <MenuItem value="Hotel">Hotel</MenuItem>
+                <MenuItem value="Transport">Transport hub</MenuItem>
+                <MenuItem value="Park">Park</MenuItem>
               </Select>
-              {buildingData.development ? (
-                <FormHelperText>建築類型在購買後不可變更</FormHelperText>
-              ) : null}
             </FormControl>
-          ) : null}
-          <FormControl variant="standard" sx={{ minWidth: 250, marginTop: 2 }}>
-            <TeamSelect
-              label="Team"
-              team={team}
-              handleTeam={handleTeam}
-              hasZero={true}
-            />
-            {team !== buildingData.owner && team !== -1 && building !== -1 ? (
-              <FormHelperText error={true}>Owner has Change!!!</FormHelperText>
-            ) : null}
-          </FormControl>
-          <FormControl variant="standard" sx={{ minWidth: 250, marginTop: 2 }}>
-            <InputLabel id="level-building">Building Level</InputLabel>
-            <Select
-              value={level}
-              labelId="level-building"
-              disabled={team === 0 || development === "Park"}
-              onChange={(e) => {
-                setLevel(e.target.value);
-              }}
-            >
-              {/* <MenuItem value={0}>0</MenuItem> */}
-              <MenuItem value={1}>1</MenuItem>
-              <MenuItem value={2}>2</MenuItem>
-              <MenuItem value={3}>3</MenuItem>
-            </Select>
-            {level - buildingData.level !== 1 &&
-            team !== -1 &&
-            buildingData.type === "Building" &&
-            building !== -1 ? (
-              <FormHelperText error={true}>
-                Not Upgrading 1 level!!!
-              </FormHelperText>
-            ) : null}
-            {/* <Button
-              disabled={team === -1 || building === -1}
-              onClick={handleClick}
-              sx={{ marginTop: 2 }}
-            >
-              Submit
-            </Button> */}
-            <Button
-              variant="contained"
-              disabled={
-                team === -1 ||
-                building === -1 ||
-                (isLargeProperty && team !== 0 && !development)
-              }
-              onClick={handleClick}
-              fullWidth
-              sx={{ marginTop: 2 }}
-            >
-              <SendIcon />
-            </Button>
-          </FormControl>
-          {!(team === -1 || building === -1) ? (
-            <>
-              <Typography component="h2" variant="h6" sx={{ marginBottom: 2 }}>
-                Preview
-              </Typography>
-              <PropertyCard {...buildingData} hawkEye={-1} />
-              <KeyboardDoubleArrowDownIcon />
-              <PropertyCard
-                {...buildingData}
-                level={level}
-                owner={team}
-                development={team === 0 ? null : development}
-                hawkEye={-1}
-              />
-            </>
-          ) : null}
-        </Box>
-        <Snackbar open={open} onClose={handleClose} sx={{ marginBottom: 10 }}>
-          <Alert
-            onClose={handleClose}
-            sx={{ width: "100%" }}
-            severity={"warning"}
-            elevation={6}
-            variant="filled"
-          >
-            Not from Add Money!
-          </Alert>
-        </Snackbar>
-      </Container>
-    );
-  }
+          )}
+          {selectedProperty && teamData && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
+                <Typography fontWeight={700}>{selectedProperty.name}</Typography>
+                <Chip label={`Purchase price: ${price.toLocaleString()}`} />
+              </Box>
+              <Typography sx={{ mt: 1 }}>Cash: {currentCash.toLocaleString()} → {nextCash.toLocaleString()}</Typography>
+              {nextCash < 0 && <Alert severity="error" sx={{ mt: 1 }}>The team does not have enough cash.</Alert>}
+            </Box>
+          )}
+          {team !== -1 && availableProperties.length === 0 && (
+            <Alert severity="info" sx={{ mt: 2 }}>No properties are currently available for purchase.</Alert>
+          )}
+          <Button fullWidth variant="contained" startIcon={<ShoppingCartIcon />} disabled={!canSubmit || submitting} onClick={handleSubmit} sx={{ mt: 2 }}>
+            {submitting ? "Processing…" : "Confirm purchase"}
+          </Button>
+        </CardContent>
+      </Card>
+      <Snackbar open={message.open} autoHideDuration={5000} onClose={() => setMessage((state) => ({ ...state, open: false }))}>
+        <Alert severity={message.severity}>{message.text}</Alert>
+      </Snackbar>
+    </Container>
+  );
 };
 
 export default SetOwnership;

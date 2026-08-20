@@ -1,500 +1,126 @@
-import React, { useState, useContext, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useContext, useState } from "react";
 import {
-  Container,
-  InputLabel,
-  Select,
-  MenuItem,
-  TextField,
-  Typography,
+  Alert,
   Box,
   Button,
-  FormControl,
-  TableContainer,
-  TableRow,
-  TableCell,
-  Table,
-  Paper,
+  Card,
+  CardContent,
+  Container,
   Grid,
-  TableBody,
+  Snackbar,
+  TextField,
+  Typography,
 } from "@mui/material";
-import SendIcon from "@mui/icons-material/Send";
-import RequestQuoteIcon from "@mui/icons-material/RequestQuote";
-import AddIcon from "@mui/icons-material/Add";
-import axios from "../axios";
-// import navigate from "../navigate";
+import PaidIcon from "@mui/icons-material/Paid";
 import RoleContext from "../useRole";
 import TeamSelect from "../TeamSelect";
+import axios from "../axios";
+
+const quickAmounts = [-16000, -10000, -5000, -4000, -3000, -2000, 2000, 3000, 4000, 5000, 10000, 16000];
 
 const AddMoney = () => {
   const [team, setTeam] = useState(-1);
-  const [teamData, setTeamData] = useState({});
-  const [newData, setNewData] = useState(0);
-  const [jeff, setJeff] = useState(false);
-  const [jeffTeam, setJeffTeam] = useState(-1);
-  const [checkMessage, setCheckMessage] = useState("");
+  const [teamData, setTeamData] = useState(null);
+  const [amount, setAmount] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState({ open: false, severity: "success", text: "" });
+  const { setNavBarId } = useContext(RoleContext);
 
-  const [amount, setAmount] = useState("0");
-  const [errorMessage, setErrorMessage] = useState("");
+  const numericAmount = Number(amount);
+  const isValid = team !== -1 && amount !== "" && Number.isInteger(numericAmount) && Math.abs(numericAmount) <= 1000000;
 
-  const [discount, setDiscount] = useState(1);
-  const [errorMessage0, setErrorMessage0] = useState("");
-  const [error0, setError0] = useState(false);
-
-  const [building, setBuilding] = useState(-1);
-  const [price, setPrice] = useState({});
-
-  const [showPreview, setShowPreview] = useState(false);
-  const { roleId, filteredBuildings, setNavBarId } = useContext(RoleContext);
-  const navigate = useNavigate();
-
-  const handleTeam = async (team) => {
-    if (amount !== "-" && amount !== "" && team !== -1) {
-      setShowPreview(true);
-    } else {
-      setShowPreview(false);
-    }
-    const { data } = await axios.get("/team/" + team);
-    // console.log(data);
+  const handleTeam = async (teamId) => {
+    setTeam(teamId);
+    const { data } = await axios.get(`/team/${teamId}`);
     setTeamData(data);
-    setTeam(team);
   };
 
-  const checkPropertyCost = async (mode) => {
-    const payload = { team: team, building: building, mode: mode };
-    const {
-      data: { message },
-    } = await axios.post("/checkPropertyCost", payload);
-    console.log(message);
-    setCheckMessage(message);
-  };
-
-  const handleAmount = async (amount) => {
-    if (amount !== "-" && amount !== "" && team !== -1) {
-      setShowPreview(true);
-    } else {
-      setShowPreview(false);
-    }
-    setAmount(amount);
-  };
-
-  const handleBuilding = async (building) => {
-    if (building > 0) {
-      const { data } = await axios.get("/land/" + building);
-      setBuilding(building);
-      setPrice(data.price);
-    } else {
-      setBuilding(-1);
-      setPrice({});
-    }
-    // console.log(data);
-  };
-
-  const handleJeff = async () => {
-    const { data } = await axios.get("/teamRich");
-    console.log(data);
-    setJeff(true);
-    setJeffTeam(data.id);
-    handleAmount(Math.round(data.money * 0.25));
-  };
-
-  const handleDiscount = () => {
-    setAmount(amount * discount);
-  }
-
-  const handleCard = async (number) => {
-    if (number === 0) {
-      // 小隊現金*1.5，最多30000
-      setAmount(teamData.money * 0.5 > 30000 ? 30000 : teamData.money * 0.5);
-    } else if (number === 1) {
-      // 強制拍賣地產，賣得的錢七三分，地主七
-      const payload = { building: building };
-      const { data } = await axios.post("/goldenFruit", payload);
-      console.log(data);
-      handleAmount(
-        Math.round(
-          (data.land[0].price.buy +
-            data.land[0].price.upgrade * (data.level - 1)) *
-            0.03
-        ) * 10
-      );
-      navigate("/teams");
-      setNavBarId(2);
-    } else if (number === 2) {
-      // 全部損失5000
-      await axios.post("/tape");
-      navigate("/teams");
-      setNavBarId(2);
-    } else if (number === 3) {
-      // 搶走錢最後一名的隨機一棟房子
-      const payload = { id: team };
-      const { data } = await axios.post("/rob", payload);
-      console.log(data);
-      if (data.building) navigate("/properties?id=" + data.building);
-      else navigate("/properties");
-      setNavBarId(3);
-    } else if (number === 4) {
-      // 與金錢榜前一名小隊平分金錢
-      const payload = { id: team };
-      await axios.post("/equility", payload);
-      navigate("/teams");
-      setNavBarId(2);
-    }
-  };
-
-  const handlePercentMoney = async (percent) => {
-    handleAmount(Math.round(amount * (1 + percent)));
-  };
-
-  const handlePreview = async () => {
-    const { data } = await axios.get("/add", {
-      params: { id: team, dollar: amount },
-    });
-    setNewData(data.money);
+  const addQuickAmount = (value) => {
+    const current = Number.isFinite(Number(amount)) ? Number(amount) : 0;
+    setAmount(String(current + value));
   };
 
   const handleSubmit = async () => {
-    const payload = {
-      id: team,
-      teamname: `第${team}小隊`,
-      dollar: parseInt(amount) ? parseInt(amount) : 0,
-      jeff: jeff,
-      jeffTeam: jeffTeam,
-    };
-    await axios.post("/add", payload);
-    setJeff(false);
-    navigate("/teams");
-    setNavBarId(2);
-  };
-
-  const handleSubmitAndSetOwnership = async () => {
-    const payload = {
-      id: team,
-      teamname: `第${team}小隊`,
-      dollar: parseInt(amount) ? parseInt(amount) : 0,
-    };
-    await axios.post("/add", payload);
-    navigate("/setownership?id=" + building + "&team=" + team);
-    setNavBarId(6);
-  };
-
-  const SimpleMoneyButton = ({ val }) => {
-    return (
-      <Button
-        variant="contained"
-        disabled={team === -1}
-        sx={{ marginBottom: 1, width: 80 }}
-        onClick={() => {
-          if (!amount) {
-            handleAmount(val);
-          } else {
-            handleAmount(parseInt(amount) + val);
-          }
-        }}
-      >
-        {val > 0 ? "+" : ""}
-        {val}
-      </Button>
-    );
-  };
-
-  useEffect(() => {
-    if (roleId < 10) {
-      navigate("/permission");
-      setNavBarId(0);
+    if (!isValid || submitting) return;
+    setSubmitting(true);
+    try {
+      await axios.post("/add", { id: team, dollar: numericAmount });
+      const { data } = await axios.get(`/team/${team}`);
+      setTeamData(data);
+      setAmount("");
+      setNavBarId(6);
+      setMessage({ open: true, severity: "success", text: "Cash balance updated." });
+    } catch (error) {
+      setMessage({ open: true, severity: "error", text: error.response?.data?.error || "Cash adjustment failed." });
+    } finally {
+      setSubmitting(false);
     }
-    // axios
-    //   .get("/team")
-    //   .then((res) => {
-    //     setTeams(res.data);
-    //   })
-    //   .catch((error) => {
-    //     console.error(error);
-    //   });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  };
 
-  useEffect(() => {
-    if (team !== -1 && amount !== 0) {
-      handlePreview();
-    }
-  }, [team, amount]); // eslint-disable-line react-hooks/exhaustive-deps
+  const currentBalance = Number(teamData?.money || 0);
+  const nextBalance = currentBalance + (Number.isFinite(numericAmount) ? numericAmount : 0);
 
   return (
-    <Container component="main" maxWidth="xs">
-      <Box
-        sx={{
-          marginTop: 9,
-          marginBottom: 9,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-        }}
-      >
-        <Typography component="h1" variant="h5" sx={{ marginBottom: 0 }}>
-          Add Money
-        </Typography>
-        <FormControl variant="standard" sx={{ minWidth: 250 }}>
-          <TeamSelect
-            label="Team"
-            team={team}
-            handleTeam={handleTeam}
-            hasZero={false}
-          />
-
-          <TextField
-            required
-            label="Amount"
-            id="amount"
-            value={amount}
-            sx={{ marginTop: 2, marginBottom: 1 }}
-            onChange={(e) => {
-              const re = /^-?[0-9\b]+$/;
-              if (
-                e.target.value === "-" ||
-                e.target.value === "" ||
-                re.test(e.target.value)
-              ) {
-                if (Math.abs(parseInt(e.target.value)) > 1000000) {
-                  setErrorMessage("Too Large");
-                } else {
-                  handleAmount(e.target.value ? e.target.value : "");
-                  setErrorMessage("");
-                }
-              } else {
-                setErrorMessage("Please enter a valid number");
-              }
-            }}
-            helperText={errorMessage}
-            FormHelperTextProps={{ error: true }}
-          />
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "space-between",
-            }}
-          >
-            <SimpleMoneyButton val={+4000} />
-            <SimpleMoneyButton val={+10000} />
-            <SimpleMoneyButton val={+16000} />
-          </Box>
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "space-between",
-            }}
-          >
-            <SimpleMoneyButton val={+2000} />
-            <SimpleMoneyButton val={+3000} />
-            <SimpleMoneyButton val={+5000} />
-          </Box>
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "space-between",
-            }}
-          >
-            <Button
-              variant="contained"
-              disabled={team === -1 || !price.buy}
-              sx={{ marginBottom: 1, width: 120 }}
-              onClick={() => {
-                handleAmount(-1 * price.buy);
-                checkPropertyCost("Buy");
-              }}
-            >
-              Buy
-            </Button>
-            <Button
-              variant="contained"
-              disabled={team === -1 || !price.upgrade}
-              sx={{ marginBottom: 1, width: 120 }}
-              onClick={() => {
-                handleAmount(-1 * price.upgrade);
-                checkPropertyCost("Upgrade");
-              }}
-            >
-              Upgrade
-            </Button>
-          </Box>
-
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "row",
-              alignItems: "center",
-              marginTop: 1,
-              marginBottom: 1,
-              width: "100%",
-            }}
-          >
-            <TextField
-              required
-              error={error0}
-              label="discount"
-              id="discount"
-              value={discount}
-              onChange={(e) => {
-                const re = /^\d*\.?\d*$/;
-                if (e.target.value === "" || re.test(e.target.value)) {
-                  setDiscount(e.target.value ? e.target.value : "");
-                  setErrorMessage0("");
-                  setError0(false);
-                } else {
-                  setErrorMessage0("Please enter a valid number");
-                  setError0(true);
-                }
-              }}
-              helperText={errorMessage0}
-              FormHelperTextProps={{ error: true }}
-            />
-
-            <Button
-              variant="contained"
-              disabled={amount === 0 || discount === 1}
-              onClick={handleDiscount}
-              fullWidth
-              fullHeight
-              sx={{ marginLeft: 1 }}
-            >
-              Calculate
-            </Button>
-          </Box>
-
-          {/* <Box
-            sx={{
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "space-between",
-            }}
-          >
-            <Button
-              variant="contained"
-              disabled={team === -1 || amount === 0}
-              sx={{ marginBottom: 1, width: 80 }}
-              onClick={() => handlePercentMoney(-0.2)}
-            >
-              -20%
-            </Button>
-            <Button
-              variant="contained"
-              disabled={team === -1 || amount === 0}
-              sx={{ marginBottom: 1, width: 80 }}
-              onClick={() => handlePercentMoney(0.5)}
-            >
-              +50%
-            </Button>
-            <Button
-              variant="contained"
-              disabled={team === -1 || amount === 0}
-              sx={{ marginBottom: 1, width: 80 }}
-              onClick={() => handlePercentMoney(1)}
-            >
-              +100%
-            </Button>
-          </Box> */}
-          <Grid container spacing={1}>
-            <Grid item xs={6}>
-              <Box display="flex" flexDirection="row" justifyContent="center">
-                <Button
-                  variant="contained"
-                  disabled={team === -1 || amount === ""}
-                  onClick={handleSubmit}
-                  fullWidth
-                >
-                  <SendIcon />
-                </Button>
-              </Box>
-            </Grid>
-            <Grid item xs={6}>
-              <Box display="flex" flexDirection="row" justifyContent="center">
-                <Button
-                  variant="contained"
-                  disabled={
-                    team === -1 ||
-                    amount === "0" ||
-                    building === -1 
-                  }
-                  onClick={handleSubmitAndSetOwnership}
-                  fullWidth
-                >
-                  <SendIcon />
-                  <AddIcon />
-                  <RequestQuoteIcon />
-                </Button>
-              </Box>
-            </Grid>
-          </Grid>
-        </FormControl>
-        <Box
-          sx={{
-            marginTop: 1,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-          }}
-        >
-          <Typography component="h1" variant="h6" sx={{ marginBottom: 0 }}>
-            Query Price
+    <Container component="main" maxWidth="sm" sx={{ pt: 4, pb: 10 }}>
+      <Card variant="outlined">
+        <CardContent>
+          <Typography variant="h5" fontWeight={700} gutterBottom>Cash Adjustment</Typography>
+          <Typography color="text.secondary" sx={{ mb: 2 }}>
+            Use this page only for a direct increase or decrease of a team's cash balance. Property transactions and upgrades have separate pages.
           </Typography>
-          <FormControl variant="standard" sx={{ minWidth: 250, marginTop: 0 }}>
-            <InputLabel id="building">Building</InputLabel>
-            <Select
-              value={building}
-              labelId="building"
-              onChange={(e) => {
-                handleBuilding(e.target.value);
-              }}
+          <TeamSelect label="Team" team={team} handleTeam={handleTeam} hasZero={false} />
+          <TextField
+            fullWidth
+            required
+            type="number"
+            label="Adjustment amount"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            error={amount !== "" && (!Number.isInteger(numericAmount) || Math.abs(numericAmount) > 1000000)}
+            helperText="Use a positive number to add cash or a negative number to deduct cash."
+            sx={{ mt: 2 }}
+          />
+          <Grid container spacing={1} sx={{ mt: 1 }}>
+            {quickAmounts.map((value) => (
+              <Grid item xs={4} sm={3} key={value}>
+                <Button
+                  fullWidth
+                  size="small"
+                  variant={value > 0 ? "outlined" : "text"}
+                  color={value > 0 ? "primary" : "error"}
+                  disabled={team === -1}
+                  onClick={() => addQuickAmount(value)}
+                >
+                  {value > 0 ? "+" : ""}{value.toLocaleString()}
+                </Button>
+              </Grid>
+            ))}
+          </Grid>
+          {teamData && amount !== "" && (
+            <Alert severity={nextBalance < 0 ? "warning" : "info"} sx={{ mt: 2 }}>
+              Cash preview: {currentBalance.toLocaleString()} → {nextBalance.toLocaleString()}
+              {nextBalance < 0 ? " (negative balance)" : ""}
+            </Alert>
+          )}
+          <Box sx={{ display: "flex", gap: 1, mt: 2 }}>
+            <Button fullWidth variant="outlined" onClick={() => setAmount("")} disabled={amount === ""}>Clear</Button>
+            <Button
+              fullWidth
+              variant="contained"
+              startIcon={<PaidIcon />}
+              disabled={!isValid || submitting}
+              onClick={handleSubmit}
             >
-              <MenuItem value={-1}>Select Building</MenuItem>
-              {filteredBuildings.map((item) => (
-                <MenuItem value={item.id} key={item.id}>
-                  {item.id} {item.name}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <TableContainer component={Paper}>
-            <Table aria-label="simple table" size="small">
-              <TableBody>
-                <TableRow>
-                  <TableCell align="left">Buy</TableCell>
-                  <TableCell align="right">
-                    {price.buy !== null ? price.buy : ""}
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell align="left">Upgrade</TableCell>
-                  <TableCell align="right">
-                    {(price.upgrade !== null) !== 0 ? price.upgrade : ""}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
-
-        {showPreview ? (
-          <Box
-            sx={{ marginTop: 2 }}
-            justifyContent="center"
-            alignItems="center"
-            display="flex"
-            flexDirection="column"
-          >
-            <Typography component="h1" variant="h6" sx={{ marginBottom: 1 }}>
-              Preview
-            </Typography>
-            <Typography component="h2" variant="body2" sx={{ marginBottom: 1 }}>
-              {teamData.money} &gt;&gt; {newData}
-            </Typography>
+              {submitting ? "Applying…" : "Apply adjustment"}
+            </Button>
           </Box>
-        ) : null}
-      </Box>
+        </CardContent>
+      </Card>
+      <Snackbar open={message.open} autoHideDuration={4000} onClose={() => setMessage((state) => ({ ...state, open: false }))}>
+        <Alert severity={message.severity}>{message.text}</Alert>
+      </Snackbar>
     </Container>
   );
 };
+
 export default AddMoney;

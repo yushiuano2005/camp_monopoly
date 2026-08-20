@@ -61,10 +61,14 @@ const normalizeLand = (land) => {
   };
 };
 
-const updateLinkedLandState = async (landId, state) =>
-  Land.updateMany({ id: { $in: getLinkedLandIds(landId) } }, { $set: state });
+const updateLinkedLandState = async (landId, state, options = {}) =>
+  Land.updateMany(
+    { id: { $in: getLinkedLandIds(landId) } },
+    { $set: state },
+    options
+  );
 
-const resetLinkedLandState = async (landId) => {
+const resetLinkedLandState = async (landId, options = {}) => {
   const state = { owner: 0, level: 0 };
   if (isLargeProperty(landId)) {
     state.buffed = 0;
@@ -72,7 +76,7 @@ const resetLinkedLandState = async (landId) => {
     state.rent = [0, 0, 0];
     state.transportFee = [2000, 3000, 4000];
   }
-  return updateLinkedLandState(landId, state);
+  return updateLinkedLandState(landId, state, options);
 };
 
 const uniqueOwnedProperties = (lands) => {
@@ -376,6 +380,95 @@ router.get("/land/:id", async (req, res) => {
 router.get("/property/:teamId", async (req, res) => {
   const properties = await Land.find({ owner: req.params.teamId });
   res.json(properties).status(200);
+});
+
+router.post("/property/purchase", requireOperator, async (req, res) => {
+  const teamId = Number(req.body.teamId);
+  const landId = Number(req.body.landId);
+  const development = req.body.development || null;
+  const session = await mongoose.startSession();
+  let result;
+
+  try {
+    await session.withTransaction(async () => {
+      const team = await Team.findOne({ id: teamId }).session(session);
+      const land = await Land.findOne({ id: landId }).session(session);
+      if (!team || !land) throw Object.assign(new Error("Team or property not found"), { status: 404 });
+      if (!["Building", "SpecialBuilding"].includes(land.type)) {
+        throw Object.assign(new Error("This space cannot be purchased"), { status: 400 });
+      }
+      if (land.owner !== 0) {
+        throw Object.assign(new Error("Property already has an owner"), { status: 409 });
+      }
+
+      const price = Number(land.price?.buy || 0);
+      if (team.money < price) {
+        throw Object.assign(new Error("Team does not have enough cash"), { status: 400 });
+      }
+
+      const state = { owner: teamId, level: 1 };
+      if (isLargeProperty(landId)) {
+        const config = getDevelopmentConfig(development);
+        if (!config) {
+          throw Object.assign(new Error("Select Hotel, Transport, or Park"), { status: 400 });
+        }
+        state.development = development;
+        state.rent = config.rent;
+        state.transportFee = config.transportFee;
+        state.largePropertyGroup = Number(getLargePropertyGroup(landId));
+      }
+
+      team.money -= price;
+      await team.save({ session });
+      await updateLinkedLandState(landId, state, { session });
+      result = { teamId, landIds: getLinkedLandIds(landId), price, balance: team.money };
+    });
+    return res.status(200).json({ message: "Property purchased", ...result });
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message });
+  } finally {
+    await session.endSession();
+  }
+});
+
+router.post("/property/upgrade", requireOperator, async (req, res) => {
+  const teamId = Number(req.body.teamId);
+  const landId = Number(req.body.landId);
+  const session = await mongoose.startSession();
+  let result;
+
+  try {
+    await session.withTransaction(async () => {
+      const team = await Team.findOne({ id: teamId }).session(session);
+      const land = await Land.findOne({ id: landId }).session(session);
+      if (!team || !land) throw Object.assign(new Error("Team or property not found"), { status: 404 });
+      if (land.owner !== teamId) {
+        throw Object.assign(new Error("Team does not own this property"), { status: 400 });
+      }
+      if (land.development === "Park") {
+        throw Object.assign(new Error("Park cannot be upgraded"), { status: 400 });
+      }
+      if (Number(land.level) >= 3) {
+        throw Object.assign(new Error("Property is already level 3"), { status: 400 });
+      }
+
+      const price = Number(land.price?.upgrade || 0);
+      if (team.money < price) {
+        throw Object.assign(new Error("Team does not have enough cash"), { status: 400 });
+      }
+
+      const nextLevel = Number(land.level) + 1;
+      team.money -= price;
+      await team.save({ session });
+      await updateLinkedLandState(landId, { level: nextLevel }, { session });
+      result = { teamId, landIds: getLinkedLandIds(landId), level: nextLevel, price, balance: team.money };
+    });
+    return res.status(200).json({ message: "Property upgraded", ...result });
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message });
+  } finally {
+    await session.endSession();
+  }
 });
 
 router.post("/set", async (req, res) => {
