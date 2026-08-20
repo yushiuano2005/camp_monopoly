@@ -19,7 +19,7 @@ const BRANCH_RULE_OVERRIDES_2026 = {
     maga: { bankEffectMultiplier: 0.5 },
   },
   10: {
-    communism: { bankEffectMultiplier: 0.5 },
+    capitalism: { bankEffectMultiplier: 0.5 },
   },
 };
 

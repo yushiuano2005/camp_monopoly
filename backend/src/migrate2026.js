@@ -39,7 +39,7 @@ const events = [
   { id: 0, title: "無", description: "", branches: [] },
   { id: 1, title: "幣圈龍婆聖旨", description: "銀行餘額複利增加30%，布萊德彼特幣價格設為5000", branches: [] },
   { id: 2, title: "You can 踹 one more time", description: "銀行餘額依預設增加10%；地產格小隊由場控扣5000元；布萊德彼特幣價格設為6000", branches: [] },
-  { id: 3, title: "普發一萬元但沒錢所以加蓋房屋", description: "不發放現金；每隊可升級一處地產；銀行餘額複利增加20%；布萊德彼特幣價格設為2000", branches: [] },
+  { id: 3, title: "普發一萬元但沒錢所以加蓋房屋", description: "不發放現金；所有已購買且符合條件的地產自動免費升級一級；銀行餘額複利增加20%；布萊德彼特幣價格設為2000", branches: [] },
   { id: 4, title: "富翁掉錢", description: "銀行餘額複利增加10%；場控在指定格子放置實體現金；布萊德彼特幣價格設為3000", branches: [] },
   { id: 5, title: "男同俱樂部", description: "銀行餘額依預設增加10%；所有男隊輔進監獄，花6000元救回；5分鐘內未救援的小隊全隊進監獄一次；布萊德彼特幣價格設為5000", branches: [] },
   {
@@ -47,8 +47,8 @@ const events = [
     title: "剝削勞工／我們的財產",
     description: "銀行餘額複利增加10%，布萊德彼特幣價格設為30000；由場控選擇分支",
     branches: [
-      { id: "labor", title: "剝削勞工", description: "每個小隊隨機決定是否進監獄" },
-      { id: "property", title: "我們的財產", description: "手頭現金第一名與最後一名、第二名與倒數第二名依序對調" },
+      { id: "labor", title: "剝削勞工（資本主義）", description: "每個小隊隨機決定是否進監獄" },
+      { id: "property", title: "我們的財產（共產主義）", description: "手頭現金第一名與最後一名、第二名與倒數第二名依序對調" },
     ],
   },
   {
@@ -56,8 +56,8 @@ const events = [
     title: "市場的手／批鬥地主",
     description: "銀行餘額依預設增加10%，布萊德彼特幣價格設為16000；由場控選擇分支",
     branches: [
-      { id: "market", title: "市場的手", description: "除銀行複利與彼特幣價格外無額外效果" },
-      { id: "landlord", title: "批鬥地主", description: "每筆已購地產扣除持有隊伍2000乘以地產等級的現金；大型地產只計一次" },
+      { id: "market", title: "市場的手（資本主義）", description: "除銀行複利與彼特幣價格外無額外效果" },
+      { id: "landlord", title: "批鬥地主（共產主義）", description: "每筆已購地產扣除持有隊伍2000乘以地產等級的現金；大型地產只計一次" },
     ],
   },
   {
@@ -65,8 +65,8 @@ const events = [
     title: "讓美國再次偉大／文化大革命",
     description: "布萊德彼特幣價格設為15000；由場控選擇分支與銀行倍率",
     branches: [
-      { id: "maga", title: "讓美國再次偉大", description: "銀行餘額先依預設增加10%，再將複利後餘額乘以0.5" },
-      { id: "revolution", title: "文化大革命", description: "銀行餘額依預設增加10%；每個有房子的小隊各由場控抽選並移除一棟建築物" },
+      { id: "maga", title: "讓美國再次偉大（資本主義）", description: "銀行餘額先依預設增加10%，再將複利後餘額乘以0.5" },
+      { id: "revolution", title: "文化大革命（共產主義）", description: "銀行餘額依預設增加10%；系統為每個有房屋可拆的小隊各隨機選取一處地產並自動降級" },
     ],
   },
   { id: 9, title: "馬斯克發廢文", description: "銀行餘額依預設增加10%；布萊德彼特幣價格設為500", branches: [] },
@@ -75,8 +75,8 @@ const events = [
     title: "最後的戰役",
     description: "布萊德彼特幣價格設為1000；由場控選擇勝方與銀行倍率",
     branches: [
-      { id: "capitalism", title: "資本主義獲勝：發動我們的財產", description: "銀行餘額依預設增加10%；手頭現金排名首尾配對交換" },
-      { id: "communism", title: "共產主義獲勝：發動讓美國再次偉大", description: "銀行餘額先依預設增加10%，再將複利後餘額乘以0.5" },
+      { id: "capitalism", title: "資本主義獲勝：發動讓美國再次偉大", description: "銀行餘額先依預設增加10%，再將複利後餘額乘以0.5" },
+      { id: "communism", title: "共產主義獲勝：發動我們的財產", description: "銀行餘額依預設增加10%；手頭現金排名首尾配對交換" },
     ],
   },
 ];

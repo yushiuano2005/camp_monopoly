@@ -7,8 +7,13 @@ import { getLargePropertyGroup } from "./largeProperties.js";
 import {
   getDefaultEventAnnouncement,
   getEventExecutionDetails,
+  getOrderedEventBranches,
 } from "./eventContent2026.js";
 import { getEventRule } from "./eventRules2026.js";
+import {
+  planFreePropertyUpgrades,
+  planRandomPropertyDemolitions,
+} from "./propertyEvent2026.js";
 
 const updateResourcePrice = async (price, session) => {
   const resource = await Resource.findOne({ id: 0 }).session(session);
@@ -64,10 +69,43 @@ const applyLandlordTax = async (session) => {
   }
 };
 
+const getPurchasedProperties = (session) =>
+  Land.find({ owner: { $ne: 0 }, level: { $gt: 0 } })
+    .sort({ id: 1 })
+    .session(session);
+
+const applyPropertyLevelOperations = async (operations, session) => {
+  for (const operation of operations) {
+    await Land.updateMany(
+      { id: { $in: operation.landIds } },
+      { $set: { level: operation.toLevel } },
+      { session }
+    );
+  }
+};
+
+const upgradeAllPurchasedProperties = async (session) => {
+  const lands = await getPurchasedProperties(session);
+  const operations = planFreePropertyUpgrades(lands);
+  await applyPropertyLevelOperations(operations, session);
+  return operations;
+};
+
+const demolishRandomPropertyPerTeam = async (session) => {
+  const lands = await getPurchasedProperties(session);
+  const operations = planRandomPropertyDemolitions(lands);
+  await applyPropertyLevelOperations(operations, session);
+  return operations;
+};
+
+const formatPropertyOperation = (operation) =>
+  `第 ${operation.owner} 小隊：#${operation.landId} ${operation.name}（Level ${operation.fromLevel} → ${operation.toLevel}）`;
+
 export const getEventPayload = (event) => {
   if (!event) return null;
   const payload = event.toObject ? event.toObject() : { ...event };
-  const selected = payload.branches?.find(
+  const orderedBranches = getOrderedEventBranches(payload.id, payload.branches);
+  const selected = orderedBranches.find(
     (branch) => branch.id === payload.selectedBranch
   );
   const eventTitle = Number(payload.id) === 10 ? "最後的戰役" : payload.title;
@@ -79,6 +117,7 @@ export const getEventPayload = (event) => {
 
   return {
     ...payload,
+    branches: orderedBranches,
     title: Number(payload.id) === 10 ? eventTitle : selected?.title ?? eventTitle,
     description: announcement,
     defaultAnnouncement,
@@ -128,9 +167,13 @@ export const executeEvent2026 = async ({ eventId, branch, announcement, session 
     case 2:
       note = "請場控依目前棋盤位置，將位於地產格的小隊各扣5000元";
       break;
-    case 3:
-      note = "請場控依 2026 SOP，為各小隊地產人工升級一次";
+    case 3: {
+      const upgraded = await upgradeAllPurchasedProperties(session);
+      note = upgraded.length > 0
+        ? `系統已免費升級 ${upgraded.length} 處地產：${upgraded.map(formatPropertyOperation).join("；")}`
+        : "事件執行時沒有符合免費升級條件的地產";
       break;
+    }
     case 4:
       note = "請場控在指定格子放置實體現金";
       break;
@@ -146,13 +189,16 @@ export const executeEvent2026 = async ({ eventId, branch, announcement, session 
       break;
     case 8:
       if (branch === "revolution") {
-        note = "請場控依 2026 SOP，為每個有房子的小隊各抽選並移除一棟房屋";
+        const demolished = await demolishRandomPropertyPerTeam(session);
+        note = demolished.length > 0
+          ? `系統已為 ${demolished.length} 個小隊各隨機拆除一棟房屋：${demolished.map(formatPropertyOperation).join("；")}`
+          : "事件執行時沒有任何小隊持有可拆除的房屋";
       }
       break;
     case 9:
       break;
     case 10:
-      if (branch === "capitalism") await swapCashByRank(session);
+      if (branch === "communism") await swapCashByRank(session);
       break;
     default: {
       const error = new Error("大型事件編號不在1到10之間");
