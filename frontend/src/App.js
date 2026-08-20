@@ -8,19 +8,14 @@ import Home from "./components/Home";
 import Notifications from "./components/Notifications";
 import Teams from "./components/Teams/Teams";
 import Properties from "./components/Properties/Properties";
-import SellProperty from "./components/Properties/SellProperty";
 import Login from "./components/Login";
 import AddMoney from "./components/NPC/AddMoney";
 import SetOwnership from "./components/NPC/SetOwnership";
 import Transfer from "./components/NPC/Transfer";
 import SetShopLevel from "./components/NPC/SetShopLevel";
-import Support from "./components/NPC/Support";
 import Event from "./components/admin/Event";
 import Resources from "./components/NPC/Resources";
-import Additional from "./components/admin/Additional";
-import SetOccupation from "./components/admin/SetOccupation";
 import Bank from "./components/admin/Bank";
-import Bankrupt from "./components/admin/Bankrupt";
 import PermissionDenied from "./components/PermissionDenied";
 import Footer from "./components/Footer";
 import RoleContext from "./components/useRole";
@@ -37,6 +32,9 @@ import Help from "./components/Help";
 import ResourcesView from "./components/Teams/ResourcesView";
 import BankTransfer from "./components/NPC/BankTransfer";
 import Interest from "./components/admin/Interest";
+import Reset from "./components/admin/Reset";
+import RequireRole from "./components/RequireRole";
+import OperationGuide from "./components/OperationGuide";
 // import SetPrices from "./components/admin/Resources";
 // import Resource from "../../backend/models/resource";
 // // import { socket, SocketContext } from "./websocket";
@@ -73,6 +71,12 @@ const App = () => {
 
   const location = useLocation();
 
+  const protectedPage = (element, access = "authenticated", guide = null) => (
+    <RequireRole access={access}>
+      {guide ? <OperationGuide guide={guide}>{element}</OperationGuide> : element}
+    </RequireRole>
+  );
+
   return (
     // <SocketContext.Provider value={socket}>
     <ThemeProvider theme={theme}>
@@ -90,32 +94,32 @@ const App = () => {
           >
             <Routes location={location}>
               <Route path="/" element={<Home />} />
-              <Route path="/help" element={<Help />} />
-              <Route path="notifications" element={<Notifications />} />
-              <Route path="teams" element={<Teams />} />
-              <Route path="resourcesview" element={<ResourcesView />} />
-              <Route path="properties" element={<Properties />} />
-              <Route path="sellproperty" element={<SellProperty />} />
+              <Route path="/help" element={protectedPage(<Help />)} />
+              <Route path="notifications" element={protectedPage(<Notifications />)} />
+              <Route path="teams" element={protectedPage(<Teams />)} />
+              <Route path="resourcesview" element={protectedPage(<ResourcesView />)} />
+              <Route path="properties" element={protectedPage(<Properties />)} />
               <Route path="login" element={<Login />} />
-              <Route path="addmoney" element={<AddMoney />} />
-              <Route path="setownership" element={<SetOwnership />} />
-              <Route path="transfer" element={<Transfer />} />
-              <Route path="banktransfer" element={<BankTransfer />} />
-              <Route path="setshop" element={<SetShopLevel />} />
-              <Route path="random" element={<Random />} />
-              <Route path="event" element={<Event />} />
-              <Route path="resources" element={<Resources/>} />
-              <Route path="additional" element={<Additional />} />
-              <Route path="setoccupation" element={<SetOccupation />} />
+              <Route path="addmoney" element={protectedPage(<AddMoney />, "npc", "addmoney")} />
+              <Route path="setownership" element={protectedPage(<SetOwnership />, "npc", "setownership")} />
+              <Route path="propertytrade" element={protectedPage(<SetOwnership />, "npc", "setownership")} />
+              <Route path="propertypurchase" element={protectedPage(<SetOwnership />, "npc", "setownership")} />
+              <Route path="transfer" element={protectedPage(<Transfer />, "npc", "transfer")} />
+              <Route path="banktransfer" element={protectedPage(<BankTransfer />, "npc", "banktransfer")} />
+              <Route path="setshop" element={protectedPage(<SetShopLevel />, "npc", "propertyupgrade")} />
+              <Route path="propertyupgrade" element={protectedPage(<SetShopLevel />, "npc", "propertyupgrade")} />
+              <Route path="random" element={protectedPage(<Random />, "npc")} />
+              <Route path="event" element={protectedPage(<Event />, "admin", "event")} />
+              <Route path="resources" element={protectedPage(<Resources />, "npc", "resources")} />
               <Route path="permission" element={<PermissionDenied />} />
               <Route path="loading" element={<Loading />} />
-              <Route path="interest" element={<Interest />} />
-              <Route path="bank" element={<Bank />} />
-              <Route path="bankrupt" element={<Bankrupt />} />
-              <Route path="broadcast" element={<Broadcast />} />
-              <Route path="setdice" element={<SetDice />} />
-              <Route path="map" element={<Map />} />
-              <Route path="setresources" element={<SetResources />} />
+              <Route path="interest" element={protectedPage(<Interest />, "admin", "interest")} />
+              <Route path="reset" element={protectedPage(<Reset />, "admin", "reset")} />
+              <Route path="bank" element={protectedPage(<Bank />, "admin", "banktransfer")} />
+              <Route path="broadcast" element={protectedPage(<Broadcast />, "admin", "broadcast")} />
+              <Route path="setdice" element={protectedPage(<SetDice />, "npc")} />
+              <Route path="map" element={protectedPage(<Map />)} />
+              <Route path="setresources" element={protectedPage(<SetResources />, "admin", "setresources")} />
             </Routes>
           </CSSTransition>
         </TransitionGroup>

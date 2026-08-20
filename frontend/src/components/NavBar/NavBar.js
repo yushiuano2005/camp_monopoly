@@ -14,13 +14,14 @@ import { NavBarItems, NPCItems, adminItems } from "./NavBarItem";
 import { NavBarStyles } from "./NavStyle";
 import RoleContext from "../useRole";
 
-const Navbar = ({ open }) => {
+const Navbar = ({ open, onClose }) => {
   // const [navBarId, setNavBarId] = useState(0);
   const { role, roleId, navBarId, setNavBarId } = useContext(RoleContext);
   const navigate = useNavigate();
   const handleClick = (index, name) => {
     navigate(name);
     setNavBarId(index);
+    onClose();
   };
 
   const mapping = (item) => (
@@ -31,7 +32,12 @@ const Navbar = ({ open }) => {
       selected={navBarId === item.id}
     >
       <ListItemIcon sx={NavBarStyles.icons}>{item.icon}</ListItemIcon>
-      <ListItemText sx={NavBarStyles.text} primary={item.label} />
+      <ListItemText
+        sx={NavBarStyles.text}
+        primary={item.route === "teams" && roleId > 20 ? "All Teams" : item.label}
+        secondary={item.description}
+        secondaryTypographyProps={{ fontSize: "0.72rem" }}
+      />
     </ListItem>
   );
 
@@ -42,23 +48,23 @@ const Navbar = ({ open }) => {
       anchor="left"
       open={open}
       onOpen={() => {}}
-      onClose={() => {}}
+      onClose={onClose}
     >
-      <Toolbar align="center">{role}</Toolbar>
+      <Toolbar align="center">{role || "Not signed in"}</Toolbar>
       <Divider />
       <List>
-        {NavBarItems.map(mapping)}
+        {roleId > 0 && NavBarItems.map(mapping)}
         {roleId > 20 && (
           <>
             <Divider />
-            <Typography sx={{ marginLeft: 3, marginTop: 2 }}>NPC</Typography>
+            <Typography sx={{ marginLeft: 3, marginTop: 2 }}>NPC Operations</Typography>
             {NPCItems.map(mapping)}
           </>
         )}
         {roleId === 100 && (
           <>
             <Divider />
-            <Typography sx={{ marginLeft: 3, marginTop: 2 }}>Admin</Typography>
+            <Typography sx={{ marginLeft: 3, marginTop: 2 }}>Admin Controls</Typography>
             {adminItems.map(mapping)}
           </>
         )}

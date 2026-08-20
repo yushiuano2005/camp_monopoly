@@ -3,7 +3,7 @@ export const NavBarStyles = {
     width: 250,
     flexShrink: 0,
     "& .MuiDrawer-paper": {
-      width: 190,
+      width: 290,
       boxSizing: "border-box",
       backgroundColor: "rgba(80,80,80,1)",
       color: "rgba(255, 255, 255, 0.7)",
@@ -18,10 +18,14 @@ export const NavBarStyles = {
     marginLeft: "5px",
   },
   text: {
-    "& span": {
-      marginLeft: "-20px",
+    marginLeft: "-12px",
+    "& .MuiListItemText-primary": {
       fontWeight: "200",
       fontSize: "15px",
+    },
+    "& .MuiListItemText-secondary": {
+      color: "rgba(255, 255, 255, 0.5)",
+      lineHeight: 1.35,
     },
   },
 };
