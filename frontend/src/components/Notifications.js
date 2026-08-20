@@ -200,10 +200,9 @@ const Notifications = () => {
                 <Typography variant="h6">
                   Event: {eventMessage ? eventMessage.title : "None"}
                 </Typography>
-                <Typography variant="body2">
+                <Typography variant="body2" sx={{ whiteSpace: "pre-line" }}>
                   {eventMessage.description}
                 </Typography>
-                <Typography variant="body2">{eventMessage.note}</Typography>
               </CardContent>
             </Card>
             {permMessages &&

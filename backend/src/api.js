@@ -11,6 +11,10 @@ import Effect from "../models/effect.js";
 import Broadcast from "../models/broadcast.js";
 import Resource from "../models/resource.js";
 import { executeEvent2026, getEventPayload } from "./event2026.js";
+import {
+  getDefaultEventAnnouncement,
+  getEventExecutionDetails,
+} from "./eventContent2026.js";
 import { RESET_SCOPE_OPTIONS, resetGameData } from "./initdata.js";
 import {
   getDevelopmentConfig,
@@ -684,7 +688,17 @@ router.get("/allEvents", async (req, res) => {
   res.status(200).json(
     events.map((event) => {
       const data = event.toObject();
-      return Number(data.id) === 10 ? { ...data, title: "最後的戰役" } : data;
+      return {
+        ...data,
+        title: Number(data.id) === 10 ? "最後的戰役" : data.title,
+        defaultAnnouncement: getDefaultEventAnnouncement(data.id),
+        executionDetails: getEventExecutionDetails(data.id),
+        branches: (data.branches ?? []).map((branch) => ({
+          ...branch,
+          defaultAnnouncement: getDefaultEventAnnouncement(data.id, branch.id),
+          executionDetails: getEventExecutionDetails(data.id, branch.id),
+        })),
+      };
     })
   );
 });
@@ -721,12 +735,22 @@ router.post("/reset", async (req, res) => {
 
 router
   .post("/event", async (req, res) => {
-    const { id, branch } = req.body;
+    const { id, branch, content } = req.body;
     const pair = await Pair.findOne({ key: "currentEvent" });
     if (!pair) return res.status(403).json({ error: "Event state not initialized" });
 
     try {
-      const eventPayload = await executeEvent2026({ eventId: id, branch });
+      if (content !== undefined && typeof content !== "string") {
+        return res.status(400).json({ error: "Event content must be text" });
+      }
+      if (content?.trim().length > 2000) {
+        return res.status(400).json({ error: "Event content is limited to 2,000 characters" });
+      }
+      const eventPayload = await executeEvent2026({
+        eventId: id,
+        branch,
+        announcement: content,
+      });
       if (Number(id) !== 0) {
         const teams = await Team.find();
         for (const team of teams) {

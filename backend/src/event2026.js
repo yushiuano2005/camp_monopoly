@@ -4,6 +4,10 @@ import Resource from "../models/resource.js";
 import Team from "../models/team.js";
 import Pair from "../models/pair.js";
 import { getLargePropertyGroup } from "./largeProperties.js";
+import {
+  getDefaultEventAnnouncement,
+  getEventExecutionDetails,
+} from "./eventContent2026.js";
 
 const EVENT_RESOURCE_PRICES = {
   1: 5000,
@@ -70,25 +74,26 @@ export const getEventPayload = (event) => {
   const selected = payload.branches?.find(
     (branch) => branch.id === payload.selectedBranch
   );
-  const descriptions = [
-    Number(payload.id) === 10 ? selected?.title : null,
-    selected?.description,
-    payload.description,
-    payload.note,
-  ]
-    .filter(Boolean)
-    .join("\n");
-
   const eventTitle = Number(payload.id) === 10 ? "最後的戰役" : payload.title;
+  const defaultAnnouncement = getDefaultEventAnnouncement(
+    payload.id,
+    payload.selectedBranch
+  );
+  const announcement = payload.announcement?.trim() || defaultAnnouncement;
 
   return {
     ...payload,
     title: Number(payload.id) === 10 ? eventTitle : selected?.title ?? eventTitle,
-    description: descriptions,
+    description: announcement,
+    defaultAnnouncement,
+    executionDetails: getEventExecutionDetails(
+      payload.id,
+      payload.selectedBranch
+    ),
   };
 };
 
-export const executeEvent2026 = async ({ eventId, branch }) => {
+export const executeEvent2026 = async ({ eventId, branch, announcement }) => {
   const numericEventId = Number(eventId);
   const event = await Event.findOne({ id: numericEventId });
   if (!event) throw new Error("大型事件不存在");
@@ -102,10 +107,16 @@ export const executeEvent2026 = async ({ eventId, branch }) => {
 
   if (numericEventId === 0) {
     event.note = "";
+    event.announcement = "";
     event.selectedBranch = "";
     await event.save();
     return getEventPayload(event);
   }
+
+  const normalizedAnnouncement =
+    typeof announcement === "string" && announcement.trim()
+      ? announcement.trim()
+      : getDefaultEventAnnouncement(numericEventId, branch);
 
   await updateResourcePrice(numericEventId);
   let note = "";
@@ -119,7 +130,7 @@ export const executeEvent2026 = async ({ eventId, branch }) => {
       break;
     case 3:
       await applyBankRate(1.2);
-      note = "請場控依2025操作方式，為各小隊地產人工升級一次";
+      note = "請場控依 2026 SOP，為各小隊地產人工升級一次";
       break;
     case 4:
       await applyBankRate(1.1);
@@ -138,7 +149,7 @@ export const executeEvent2026 = async ({ eventId, branch }) => {
       break;
     case 8:
       if (branch === "maga") await applyBankRate(0.5);
-      else note = "請場控依2025操作方式，人工抽選並移除一棟房屋";
+      else note = "請場控依 2026 SOP，人工抽選並移除一棟房屋";
       break;
     case 9:
       break;
@@ -154,6 +165,7 @@ export const executeEvent2026 = async ({ eventId, branch }) => {
   }
 
   event.note = note;
+  event.announcement = normalizedAnnouncement;
   event.selectedBranch = branch ?? "";
   await event.save();
   return getEventPayload(event);

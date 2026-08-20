@@ -5,6 +5,7 @@ const EventSchema = new Schema({
   title: String,
   description: String,
   note: String,
+  announcement: { type: String, default: "" },
   branches: [
     {
       id: String,

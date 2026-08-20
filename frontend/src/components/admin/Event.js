@@ -19,36 +19,32 @@ import axios from "../axios";
 const Event = () => {
   const [event, setEvent] = useState(0);
   const [branch, setBranch] = useState("");
-  const [message, setMessage] = useState("無");
-  const [APIResponse, setAPIResponse] = useState("");
-  const [tempPhase, setTempPhase] = useState(1);
+  const [message, setMessage] = useState("");
+  const [APIResponse, setAPIResponse] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const [events, setEvents] = useState([]);
-  const { role, setPhase } = useContext(RoleContext);
+  const { role } = useContext(RoleContext);
   const navigate = useNavigate();
 
   const handleClick = async () => {
-    await axios.post("/event", { id: event, branch }).then((res) => {
-      setAPIResponse(res.data.message);
-    });
-    // navigate("/notifications");
+    setSubmitting(true);
+    setAPIResponse(null);
+    try {
+      const { data } = await axios.post("/event", {
+        id: event,
+        branch,
+        content: message.trim(),
+      });
+      setAPIResponse({ severity: "success", text: data.message });
+    } catch (error) {
+      setAPIResponse({
+        severity: "error",
+        text: error.response?.data?.error ?? "Failed to execute the event",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
-
-  const handleClick2 = async () => {
-    setPhase(tempPhase);
-    await axios.post("/phase", { phase: tempPhase });
-    navigate("/notifications");
-  };
-
-  const handleMoneyPercent = async () => {
-    await axios.post("/percent", {});
-    navigate("/teams");
-  }
-
-  const handleResourcePercent = async () => {
-    console.log("in");
-    await axios.post("/cutResource", {});
-    navigate("/teams");
-  }
 
   useEffect(() => {
     if (role !== "admin") {
@@ -70,6 +66,9 @@ const Event = () => {
   } else {
     const selectedEvent = events.find((item) => item.id === event);
     const selectedBranches = selectedEvent?.branches ?? [];
+    const selectedBranch = selectedBranches.find((item) => item.id === branch);
+    const executionDetails =
+      selectedBranch?.executionDetails ?? selectedEvent?.executionDetails ?? [];
     return (
       <Container component="main" maxWidth="xs">
         <Box
@@ -89,19 +88,19 @@ const Event = () => {
               value={event}
               labelId="title"
               onChange={(e) => {
+                const nextEventId = Number(e.target.value);
                 const nextEvent = events.find(
-                  (item) => item.id === e.target.value
+                  (item) => item.id === nextEventId
                 );
-                const nextBranch = nextEvent?.branches?.[0]?.id ?? "";
-                const nextBranchDescription =
-                  nextEvent?.branches?.[0]?.description ?? "";
-                setEvent(e.target.value);
-                setBranch(nextBranch);
+                const nextBranch = nextEvent?.branches?.[0];
+                setEvent(nextEventId);
+                setBranch(nextBranch?.id ?? "");
                 setMessage(
-                  [nextBranchDescription, nextEvent?.description]
-                    .filter(Boolean)
-                    .join("\n")
+                  nextBranch?.defaultAnnouncement ??
+                    nextEvent?.defaultAnnouncement ??
+                    ""
                 );
+                setAPIResponse(null);
               }}
             >
               {events.map((item) => {
@@ -124,10 +123,11 @@ const Event = () => {
                     );
                     setBranch(e.target.value);
                     setMessage(
-                      `${nextBranch?.description ?? ""}\n${
-                        selectedEvent?.description ?? ""
-                      }`
+                      nextBranch?.defaultAnnouncement ??
+                        selectedEvent?.defaultAnnouncement ??
+                        ""
                     );
+                    setAPIResponse(null);
                   }}
                 >
                   {selectedBranches.map((item) => (
@@ -140,79 +140,51 @@ const Event = () => {
             ) : null}
             <TextField
               id="content"
-              label="Content"
+              label="Announcement Content (editable)"
               multiline
+              minRows={4}
               sx={{ marginTop: 2, marginBottom: 2 }}
               variant="standard"
               value={message}
+              helperText="The control desk may revise this announcement before publishing it."
               onChange={(e) => {
                 setMessage(e.target.value);
               }}
             />
+            {event !== 0 ? (
+              <Alert severity="info" sx={{ marginBottom: 2 }}>
+                <Typography variant="subtitle2">
+                  Actual Execution (read-only)
+                </Typography>
+                <Box component="ul" sx={{ pl: 2, mb: 0, mt: 1 }}>
+                  {executionDetails.map((detail, index) => (
+                    <Typography component="li" variant="body2" key={index}>
+                      {detail}
+                    </Typography>
+                  ))}
+                </Box>
+              </Alert>
+            ) : null}
             <Button
+              variant="contained"
               disabled={
+                submitting ||
                 event === 0 ||
-                !message ||
+                !message.trim() ||
                 (selectedBranches.length > 0 && !branch)
               }
               onClick={handleClick}
             >
-              Submit
+              {submitting ? "Publishing..." : "Publish and Execute Event"}
             </Button>
           </FormControl>
 
-          {APIResponse && <Alert severity="info">{APIResponse}</Alert>}
+          {APIResponse && (
+            <Alert severity={APIResponse.severity} sx={{ marginTop: 2 }}>
+              {APIResponse.text}
+            </Alert>
+          )}
         </Box>
-
-        {/* <Box
-            sx={{
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "space-between",
-            }}
-          >
-            <Button
-              variant="contained"
-              sx={{ marginBottom: 1, width: 80 }}
-              onClick={handleMoneyPercent}
-            >
-              money -30%
-            </Button>
-
-            <Button
-              variant="contained"
-              sx={{ marginBottom: 1, width: 80 }}
-              onClick={handleResourcePercent}
-            >
-              Resource -50%
-            </Button>
-          </Box> */}
-        {/* <Box
-          sx={{
-            marginTop: 5,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-          }}
-        >
-          <Typography component="h1" variant="h5">
-            Phase Settings
-          </Typography>
-          <FormControl variant="standard" sx={{ minWidth: 250, marginTop: 2 }}>
-            <InputLabel id="title">Select Phase</InputLabel>
-            <Select
-              value={tempPhase}
-              onChange={(e) => setTempPhase(e.target.value)}
-            >
-              <MenuItem value={1}>1</MenuItem>
-              <MenuItem value={2}>2</MenuItem>
-              <MenuItem value={3}>3</MenuItem>
-            </Select>
-            <Button onClick={handleClick2} sx={{ marginTop: 2 }}>
-              Submit
-            </Button>
-          </FormControl>
-        </Box> */}
       </Container>
     );
   }
