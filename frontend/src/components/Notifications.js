@@ -60,8 +60,17 @@ const Notifications = () => {
 
   const FetchMessages = async () => {
     const { data } = await axios.get("/notifications");
-    const temporary = data.filter((item) => item.type === "temporary");
-    const permanent = data.filter((item) => item.type === "permenant");
+    let visibleMessages = data;
+    if (roleId >= 1 && roleId <= 9) {
+      const { data: ownTeam } = await axios.get(`/team/${roleId}`);
+      visibleMessages = data.filter(
+        (item) => !item.teamname || item.teamname === ownTeam?.teamname
+      );
+    }
+    const temporary = visibleMessages.filter((item) => item.type === "temporary");
+    const permanent = visibleMessages.filter(
+      (item) => item.type === "permanent" || item.type === "permenant"
+    );
     setMessages(temporary);
     setPermMessages(permanent);
   };
@@ -93,14 +102,6 @@ const Notifications = () => {
 
   useEffect(() => {
     //fetch event, messages, and historical broadcast from backend
-    const reloadCount = sessionStorage.getItem("reloadCount");
-    if (reloadCount < 1) {
-      sessionStorage.setItem("reloadCount", String(reloadCount + 1));
-      window.location.reload();
-    } else {
-      sessionStorage.removeItem("reloadCount");
-    }
-
     FetchEvent();
     FetchMessages();
     FetchBroadcast();
@@ -175,7 +176,7 @@ const Notifications = () => {
             sx={{ marginTop: "70px" }}
           >
             <Tab label="current" {...tabprops(0)} />
-            {/* <Tab label="history" {...tabprops(1)} /> */}
+            <Tab label="Announcement History" {...tabprops(1)} />
           </Tabs>
         </Box>
 
@@ -197,7 +198,7 @@ const Notifications = () => {
             >
               <CardContent>
                 <Typography variant="h6">
-                  事件：{eventMessage ? eventMessage.title : "無"}
+                  Event: {eventMessage ? eventMessage.title : "None"}
                 </Typography>
                 <Typography variant="body2">
                   {eventMessage.description}
