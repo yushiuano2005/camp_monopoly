@@ -628,23 +628,6 @@ router.post("/cutResource", async (req, res) => {
 });
 
 
-router.post("/sell", async (req, res) => {
-  const { teamId, landId, forced } = req.body;
-  const land = await Land.findOne({ id: landId });
-  if (land.owner !== teamId && teamId < 10) {
-    res.status(400).json({ error: "Not your land" });
-    return;
-  }
-  const team = await Team.findOne({ id: land.owner });
-
-  const price = calcSellPrice(land, forced);
-  // team.money += price
-  // await team.save();
-  await updateTeam(land.owner, price, req.io, true);
-  await resetLinkedLandState(landId);
-  res.status(200).json({ message: "Sell successful" });
-});
-
 router.post("/bankTransfer", async (req, res) => {
   const {targetTeam, dollar} = req.body;
   const team = await Team.findOne({
@@ -868,19 +851,6 @@ router.post("/series", async (req, res) => {
     await Land.find({ area, owner: teamId })
   ).filter((land) => land.owner > 0).length;
   res.json({ count }).status(200);
-});
-
-router.post("/soldout", async (req, res) => {
-  const { id, building } = req.body;
-  const team = await Team.find({ id: id });
-  const land = await Land.find({ id: building });
-  team[0].money +=
-    Math.round(
-      (land[0].price.buy + land[0].price.upgrade * (land[0].level - 1)) * 0.08
-    ) * 10;
-  await team[0].save();
-  await resetLinkedLandState(building);
-  res.json("Success").status(200);
 });
 
 router.post("/deposit", async (req, res) => {
