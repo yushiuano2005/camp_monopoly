@@ -50,7 +50,7 @@ const Login = () => {
     try {
       const payload = { username: user, password };
       const {
-        data: { username },
+        data: { username, token },
       } = await axios.post("/login", payload);
 
       if (username !== "") {
@@ -64,24 +64,28 @@ const Login = () => {
         setRole(username);
         setRoleId(id);
         localStorage.setItem("role", username);
+        if (token) sessionStorage.setItem("operatorToken", token);
+        else sessionStorage.removeItem("operatorToken");
         navigate("/");
         return;
       }
 
       setRole("");
       setRoleId(0);
+      sessionStorage.removeItem("operatorToken");
       setMessage("Wrong Username or Password.");
       setOpen(true);
     } catch (error) {
       setRole("");
       setRoleId(0);
+      sessionStorage.removeItem("operatorToken");
 
       if (error.response?.status === 503) {
-        setMessage("後端已啟動，但資料庫尚未連線，請檢查 MongoDB 設定。");
+        setMessage("The backend is running, but MongoDB is not connected.");
       } else if (!error.response) {
-        setMessage("無法連接後端，請確認 yarn start-backend 是否正在執行。");
+        setMessage("Unable to reach the backend. Check whether yarn start-backend is running.");
       } else {
-        setMessage("登入時發生錯誤，請稍後再試。");
+        setMessage("An error occurred while signing in. Please try again.");
       }
       setOpen(true);
     }

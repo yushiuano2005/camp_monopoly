@@ -1,4 +1,6 @@
 import express from "express";
+import { randomBytes } from "crypto";
+import mongoose from "mongoose";
 import Team from "../models/team.js";
 import Land from "../models/land.js";
 import User from "../models/user.js";
@@ -17,6 +19,31 @@ import {
   isLargeProperty,
 } from "./largeProperties.js";
 const router = express.Router();
+const operatorSessions = new Map();
+const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+
+const createOperatorSession = (username) => {
+  const token = randomBytes(32).toString("hex");
+  operatorSessions.set(token, { username, expiresAt: Date.now() + SESSION_TTL_MS });
+  return token;
+};
+
+const requireOperator = (req, res, next) => {
+  const authorization = req.get("authorization") || "";
+  const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+  const session = operatorSessions.get(token);
+
+  if (!session || session.expiresAt <= Date.now()) {
+    if (token) operatorSessions.delete(token);
+    return res.status(401).json({ error: "Operator login required" });
+  }
+  if (!["npc", "admin"].includes(String(session.username).toLowerCase())) {
+    return res.status(403).json({ error: "NPC or Admin permission required" });
+  }
+
+  req.operator = session;
+  return next();
+};
 
 const normalizeLand = (land) => {
   const data = land.toObject ? land.toObject() : { ...land };
@@ -1213,7 +1240,9 @@ router.post("/login", async (req, res) => {
     console.log("login failed");
     return;
   }
-  res.status(200).send({ username: user.username });
+  const isOperator = ["npc", "admin"].includes(String(user.username).toLowerCase());
+  const token = isOperator ? createOperatorSession(user.username) : "";
+  res.status(200).send({ username: user.username, token });
   // null, npc, admin: String
 });
 

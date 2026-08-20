@@ -45,6 +45,7 @@ const Header = () => {
     setRole("");
     setRoleId(0);
     localStorage.removeItem("role");
+    sessionStorage.removeItem("operatorToken");
     navigate("/"); //set to home later
   };
 
@@ -97,7 +98,7 @@ const Header = () => {
         <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
           <IconButton onClick={handleChange} sx={{ color: "rgba(255, 255, 255, 0.7)" }}>
             <MenuIcon />
-            <NavBar open={open} />
+            <NavBar open={open} onClose={() => setOpen(false)} />
           </IconButton>
           <Typography variant="h1">MONOPOLY</Typography>
           <Button

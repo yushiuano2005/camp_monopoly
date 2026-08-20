@@ -6,4 +6,10 @@ const instance = _axios.create({
   timeout: 2000,
 });
 
+instance.interceptors.request.use((config) => {
+  const token = sessionStorage.getItem("operatorToken");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
 export default instance;
