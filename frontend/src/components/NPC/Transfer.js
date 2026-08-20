@@ -410,7 +410,7 @@ const Transfer = () => {
         </FormControl>
         {buildingData.development === "Hotel" ? (
           <FormControl variant="standard" sx={{ minWidth: 250, marginTop: 1 }}>
-            <InputLabel id="hotel-dice-label">飯店骰子點數</InputLabel>
+            <InputLabel id="hotel-dice-label">Hotel dice result</InputLabel>
             <Select
               value={hotelDice}
               labelId="hotel-dice-label"
@@ -426,20 +426,20 @@ const Transfer = () => {
         ) : null}
         {buildingData.development === "Transport" ? (
           <FormControl variant="standard" sx={{ minWidth: 250, marginTop: 1 }}>
-            <InputLabel id="transport-usage-label">使用轉運功能</InputLabel>
+            <InputLabel id="transport-usage-label">Use transport service</InputLabel>
             <Select
               value={useTransport ? "yes" : "no"}
               labelId="transport-usage-label"
               onChange={(e) => handleTransportUsage(e.target.value === "yes")}
             >
-              <MenuItem value="no">只支付過路費</MenuItem>
-              <MenuItem value="yes">過路費＋轉運使用費</MenuItem>
+              <MenuItem value="no">Pay rent only</MenuItem>
+              <MenuItem value="yes">Pay rent and transport fee</MenuItem>
             </Select>
           </FormControl>
         ) : null}
         {buildingData.development === "Park" ? (
           <Typography variant="body2" sx={{ marginTop: 1 }}>
-            公園免收過路費
+            Parks do not charge rent.
           </Typography>
         ) : null}
         <FormControl

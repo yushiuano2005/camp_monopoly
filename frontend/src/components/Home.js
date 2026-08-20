@@ -16,7 +16,7 @@ const Home = () => {
       />
       <img
         src="/EEcampCover.png"
-        alt="2026 電機外交聯合宿營主視覺"
+        alt="2026 EE x DFLL Camp main visual"
         style={{
           maxWidth: "100%",
           userSelect: "none",

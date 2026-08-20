@@ -279,7 +279,7 @@ const Bank = () => {
                             {column.id === "money"
                               ? Math.round(item[column.id]) > 0
                                 ? Math.round(item[column.id])
-                                : "破產"
+                                : "Negative balance"
                               : column.id === "resources"
                               ? `Gold: ${item[column.id].love}, Meat: ${
                                   item[column.id].eecoin

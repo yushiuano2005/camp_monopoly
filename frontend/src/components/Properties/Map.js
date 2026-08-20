@@ -19,7 +19,7 @@ const Map = () => {
         </Typography>
         <img
           src="/EEmap-2026.png"
-          alt="2026 大富翁格子地圖"
+          alt="2026 Monopoly board map"
           style={{
             maxWidth: "100%",
             userSelect: "none",

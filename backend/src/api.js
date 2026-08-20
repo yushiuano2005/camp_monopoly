@@ -280,7 +280,7 @@ async function updateTeam(team, moneyChanged, io, saved) {
   let final = Math.round(teamObj.money + moneyChanged * ratio);
   if (saved && final < 0) {
     const message = {
-      title: "破產!!!",
+      title: "Negative cash balance",
       description: teamObj.teamname,
       level: 0,
       createdAt: Date.now(),
