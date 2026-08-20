@@ -895,17 +895,8 @@ router.post("/deposit", async (req, res) => {
 router.post("/accounting", async (req, res) => {
   const teams = await Team.find().sort({ id: 1 });
   for (let i = 0; i < teams.length; i++) {
-    const lands = uniqueOwnedProperties(
-      await Land.find({ owner: teams[i].id })
-    );
-    let total = 0;
-    for (let i = 0; i < lands.length; i++) {
-      total +=
-        (lands[i].price.buy + lands[i].price.upgrade * (lands[i].level - 1)) *
-        0.9;
-    }
-    if (teams[i].deposit >= 0) teams[i].money += total + teams[i].deposit;
-    else teams[i].money += total + teams[i].deposit * 1.3;
+    if (teams[i].deposit >= 0) teams[i].money += teams[i].deposit;
+    else teams[i].money += teams[i].deposit * 1.3;
 
     teams[i].deposit = 0;
     await teams[i].save();

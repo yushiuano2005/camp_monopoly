@@ -15,15 +15,15 @@ const TeamSelect = ({ label, team, handleTeam, hasZero, sx }) => {
       >
         <MenuItem value={-1}>Select Team</MenuItem>
         {hasZero && <MenuItem value={0}>N/A</MenuItem>}
-        <MenuItem value={1}>第01小隊</MenuItem>
-        <MenuItem value={2}>第02小隊</MenuItem>
-        <MenuItem value={3}>第03小隊</MenuItem>
-        <MenuItem value={4}>第04小隊</MenuItem>
-        <MenuItem value={5}>第05小隊</MenuItem>
-        <MenuItem value={6}>第06小隊</MenuItem>
-        <MenuItem value={7}>第07小隊</MenuItem>
-        <MenuItem value={8}>第08小隊</MenuItem>
-        <MenuItem value={9}>第09小隊</MenuItem>
+        <MenuItem value={1}>Team 01</MenuItem>
+        <MenuItem value={2}>Team 02</MenuItem>
+        <MenuItem value={3}>Team 03</MenuItem>
+        <MenuItem value={4}>Team 04</MenuItem>
+        <MenuItem value={5}>Team 05</MenuItem>
+        <MenuItem value={6}>Team 06</MenuItem>
+        <MenuItem value={7}>Team 07</MenuItem>
+        <MenuItem value={8}>Team 08</MenuItem>
+        <MenuItem value={9}>Team 09</MenuItem>
       </Select>
     </>
   );

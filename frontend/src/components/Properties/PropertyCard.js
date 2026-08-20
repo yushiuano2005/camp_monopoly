@@ -7,7 +7,6 @@ import RoleContext from "../useRole";
 import axios from "axios";
 
 const colors = {
-  Go: "rgb(0,0,0)",
   Building: {
     1: "rgb(255,102,102)",
     2: "rgb(255,204,153)",
@@ -56,14 +55,14 @@ const PropertyCard = ({
       ? colors[type][area] ?? "rgb(123,92,166)"
       : colors[type];
   const developmentLabels = {
-    Hotel: "飯店",
-    Transport: "轉運站",
-    Park: "公園",
+    Hotel: "Hotel",
+    Transport: "Transport hub",
+    Park: "Park",
   };
   const isLargeProperty =
     Boolean(largePropertyGroup) || [13, 14, 26, 27].includes(Number(id));
   const displayName = isLargeProperty
-    ? `${name}（${developmentLabels[development] ?? "尚未開發"}）`
+    ? `${name} (${developmentLabels[development] ?? "Not developed"})`
     : name;
   // console.log(ref);
   let levelIcon = [];
@@ -172,7 +171,7 @@ const PropertyCard = ({
             {type === "Building" || type === "SpecialBuilding" ? (
               <Grid item>
                 <Typography variant="caption">
-                  {owner === 0 ? <br /> : `第${owner}小隊`}
+                  {owner === 0 ? <br /> : `Team ${owner}`}
                 </Typography>
               </Grid>
             ) : (
@@ -230,7 +229,7 @@ const PropertyCard = ({
               component="h2"
               sx={{ fontWeight: 1000 }}
             >
-              房產資訊
+              Property details
             </Typography>
           </Box>
           <Box
@@ -247,21 +246,21 @@ const PropertyCard = ({
               sx={{ fontWeight: 700 }}
               component="h5"
             >
-              {`地產名稱：${displayName}`}
+              {`Property: ${displayName}`}
             </Typography>
             <Typography
               id="modal-modal-description-2"
               sx={{ fontWeight: 700 }}
               component="h5"
             >
-              {`地產持有人：${owner === 0 ? "無" : `第${owner}小隊`}`}
+              {`Owner: ${owner === 0 ? "None" : `Team ${owner}`}`}
             </Typography>
             <Typography
               id="modal-modal-description-2"
               sx={{ fontWeight: 700 }}
               component="h4"
             >
-              {`地產花費： 購買 ${buy}  升級 ${upgrade} `}
+              {`Cost: purchase ${buy}; upgrade ${upgrade}`}
             </Typography>
             <Typography
               id="modal-modal-description-2"
@@ -269,26 +268,26 @@ const PropertyCard = ({
               component="h5"
             >
               {development === "Hotel"
-                ? `飯店基數：一級 ${rent[0]}、二級 ${rent[1]}、三級 ${rent[2]}；實收為骰子點數乘以基數`
+                ? `Hotel base rent: level 1 ${rent[0]}, level 2 ${rent[1]}, level 3 ${rent[2]}; actual rent is the base multiplied by the dice result.`
                 : development === "Transport"
-                ? `轉運站過路費：${rent[0]}/${rent[1]}/${rent[2]}；使用轉運另加 ${
+                ? `Transport hub rent: ${rent[0]}/${rent[1]}/${rent[2]}; using transport adds ${
                     transportFee?.[0] ?? 2000
                   }/${transportFee?.[1] ?? 3000}/${transportFee?.[2] ?? 4000}`
                 : development === "Park"
-                ? "公園：免收過路費，且沒有等級"
-                : `過路費： 一級 ${rent[0]} 二級 ${rent[1]} 三級 ${rent[2]} `}
+                ? "Park: no rent and no upgrade levels."
+                : `Rent: level 1 ${rent[0]}, level 2 ${rent[1]}, level 3 ${rent[2]}`}
             </Typography>
             <Typography
               id="modal-modal-description-2"
               sx={{ fontWeight: 700 }}
               component="h5"
             >
-              {`相同房產增益： ${
+              {`Area ownership bonus: ${
                 buffed === 0
-                  ? "尚未觸發"
+                  ? "Not active"
                   : buffed === 1
-                  ? "已觸發一級增益"
-                  : "已觸發二級增益"
+                  ? "Level 1 bonus active"
+                  : "Level 2 bonus active"
               }`}
             </Typography>
           </Box>
