@@ -1,29 +1,39 @@
-version: "3"
 services:
   monopoly-mongodb:
+    container_name: monopoly-mongodb
     image: mongo
     expose:
       - "27017"
     networks:
-      - monopoly-mongodb
+      - monopoly
+    volumes:
+      - ./mongodbdata:/data/db
+    restart: unless-stopped
+
   monopoly-web:
-    image: lin1214/camp_monopoly
+    container_name: monopoly-web-2026
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: https://eecamp-monopoly-2026.ntuee.org/api
     expose:
       - "2022"
+    ports:
+      - "2022:2022"
     depends_on:
       - monopoly-mongodb
     environment:
       MONGO_URL: mongodb://monopoly-mongodb/monopoly
-      WEB_DOMAIN: eecamp-monopoly.ntuee.org
+      WEB_DOMAIN: eecamp-monopoly-2026.ntuee.org
     tty: true
     stdin_open: true
     networks:
-      - monopoly-web
+      - monopoly
+      - nginx
+    restart: unless-stopped
 
 networks:
-  monopoly-mongodb:
-    external:
-      name: eeinfo
-  monopoly-web:
-    external:
-      name: eeinfo
+  nginx:
+    external: true
+  monopoly:
