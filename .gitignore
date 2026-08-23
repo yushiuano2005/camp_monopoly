@@ -25,4 +25,4 @@ yarn-debug.log*
 yarn-error.log*
 
 # Local backend credentials
-/backend/.env
+/backend/.env.default
