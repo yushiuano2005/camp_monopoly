@@ -70,19 +70,23 @@ const Event = () => {
     const executionDetails =
       selectedBranch?.executionDetails ?? selectedEvent?.executionDetails ?? [];
     return (
-      <Container component="main" maxWidth="xs">
+      <Container
+	component="main" 
+	maxWidth="xs"
+	sx={{ pt:10,pb:12 }}
+	>
         <Box
           sx={{
-            marginTop: 10,
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
+	   width: "100%",
           }}
         >
           <Typography component="h1" variant="h5">
             Event Settings
           </Typography>
-          <FormControl variant="standard" sx={{ minWidth: 250, marginTop: 2 }}>
+          <FormControl fullWidth variant="standard" sx={{ marginTop: 2}}>
             <InputLabel id="title">Title</InputLabel>
             <Select
               value={event}
@@ -165,18 +169,29 @@ const Event = () => {
                 </Box>
               </Alert>
             ) : null}
+           <Box
+              sx={{
+                position: "sticky",
+                bottom: 64,
+                zIndex: 2,
+                py: 1,
+                bgcolor: "background.paper",
+              }}
+	    >
             <Button
-              variant="contained"
-              disabled={
-                submitting ||
-                event === 0 ||
-                !message.trim() ||
-                (selectedBranches.length > 0 && !branch)
-              }
-              onClick={handleClick}
-            >
-              {submitting ? "Publishing..." : "Publish and Execute Event"}
-            </Button>
+                fullWidth
+                variant="contained"
+                disabled={
+                  submitting ||
+                  event === 0 ||
+                  !message.trim() ||
+                  (selectedBranches.length > 0 && !branch)
+                }
+                onClick={handleClick}
+              >
+                {submitting ? "Publishing..." : "Publish and Execute Event"}
+              </Button>
+            </Box>
           </FormControl>
 
           {APIResponse && (

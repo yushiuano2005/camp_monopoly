@@ -1,7 +1,16 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Alert,
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -26,6 +35,27 @@ import Loading from "../Loading";
 import axios from "../axios";
 
 const formatNumber = (value) => Number(value || 0).toLocaleString("zh-TW");
+
+const requestFailureMessage = (label, error) => {
+  const status = error?.response?.status;
+
+  if (status === 401) {
+    return "Your login session expired, usually because the backend restarted. Sign in again.";
+  }
+  if (status === 403) {
+    return `${label} could not be loaded because this account does not have permission.`;
+  }
+  if (status === 503) {
+    return "MongoDB is temporarily unavailable. Check the backend database connection.";
+  }
+  if (error?.code === "ECONNABORTED" || error?.message?.toLowerCase().includes("timeout")) {
+    return `${label} request timed out. The backend or database responded too slowly.`;
+  }
+  if (!error?.response) {
+    return `${label} could not reach the backend.`;
+  }
+  return `${label} request failed (HTTP ${status}).`;
+};
 
 const uniqueProperties = (properties = []) => {
   const seen = new Set();
@@ -59,7 +89,7 @@ const TeamAssetCard = ({ icon, label, value, helper }) => (
   </Grid>
 );
 
-const TeamPrivateView = ({ team, properties, coinPrice }) => {
+const TeamPrivateView = ({ team, properties, coinPrice,topPadding = 10 }) => {
   const ownedProperties = useMemo(() => uniqueProperties(properties), [properties]);
   const finalSettlementCash =
     Number(team.money || 0) +
@@ -67,7 +97,7 @@ const TeamPrivateView = ({ team, properties, coinPrice }) => {
     Number(team.resources?.eecoin || 0) * coinPrice;
 
   return (
-    <Container maxWidth="lg" sx={{ pt: 10, pb: 10 }}>
+    <Container maxWidth="lg" sx={{ pt: topPadding, pb: 10 }}>
       <Typography variant="h4" fontWeight={700} gutterBottom>{team.teamname}</Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
         This page shows only your team's resources and updates automatically after staff operations.
@@ -103,11 +133,11 @@ const TeamPrivateView = ({ team, properties, coinPrice }) => {
   );
 };
 
-const OperatorTeamTable = ({ teams, properties, coinPrice }) => {
+const OperatorTeamTable = ({ teams, properties, coinPrice, topPadding = 10 }) => {
   const getTeamProperties = (teamId) => uniqueProperties(properties.filter((item) => item.owner === teamId));
 
   return (
-    <Container maxWidth="lg" sx={{ pt: 10, pb: 10 }}>
+    <Container maxWidth="lg" sx={{ pt: topPadding , pb: 10 }}>
       <Typography variant="h4" fontWeight={700} gutterBottom>All Teams</Typography>
       <Typography color="text.secondary" sx={{ mb: 2 }}>
         NPC and Admin users can verify operation results here. Team accounts cannot see this table.
@@ -147,29 +177,67 @@ const OperatorTeamTable = ({ teams, properties, coinPrice }) => {
 };
 
 const Teams = () => {
-  const { roleId, teams, setTeams } = useContext(RoleContext);
+  const { roleId, teams, setTeams, setRole, setRoleId } = useContext(RoleContext);
   const [privateTeam, setPrivateTeam] = useState(null);
   const [properties, setProperties] = useState([]);
   const [coinPrice, setCoinPrice] = useState(0);
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const requestInProgress = useRef(false);
+  const navigate = useNavigate();
   const isTeam = roleId >= 1 && roleId <= 9;
 
   const loadData = useCallback(async () => {
+   if (requestInProgress.current) return;
+    requestInProgress.current = true;
+    setRefreshing(true);
     try {
       setError("");
-      const [teamResponse, propertyResponse, resourceResponse] = await Promise.all([
-        axios.get(isTeam ? `/team/${roleId}` : "/team"),
+      const results = await Promise.allSettled([
+	axios.get(isTeam ? `/team/${roleId}` : "/team"),
         axios.get(isTeam ? `/property/${roleId}` : "/land"),
         axios.get("/resourceInfo"),
       ]);
-      if (isTeam) setPrivateTeam(teamResponse.data);
-      else setTeams(teamResponse.data);
-      setProperties(propertyResponse.data || []);
-      setCoinPrice(Number(resourceResponse.data?.[0]?.price || 0));
-    } catch (requestError) {
-      setError("Unable to load team data. Check the backend and MongoDB connection.");
-    }
-  }, [isTeam, roleId, setTeams]);
+      const labels = ["Team data", "Property data", "Resource data"];
+      const failures = results
+        .map((result, index) =>
+          result.status === "rejected"
+            ? { label: labels[index], error: result.reason }
+            : null
+        )
+        .filter(Boolean);
+
+      const [teamResult, propertyResult, resourceResult] = results;
+      if (teamResult.status === "fulfilled") {
+        if (isTeam) setPrivateTeam(teamResult.value.data);
+        else setTeams(teamResult.value.data);
+      }
+      if (propertyResult.status === "fulfilled") {
+        setProperties(propertyResult.value.data || []);
+      }
+      if (resourceResult.status === "fulfilled") {
+        setCoinPrice(Number(resourceResult.value.data?.[0]?.price || 0));
+      }
+
+      setSessionExpired(
+        failures.some(({ error: requestError }) => requestError?.response?.status === 401)
+      );
+      setError(
+        [...new Set(failures.map(({ label, error: requestError }) =>
+          requestFailureMessage(label, requestError)
+        ))].join(" ")
+      );
+    } 
+      catch (requestError) {
+      setSessionExpired(false);
+      setError(requestFailureMessage("Team data", requestError));
+    } finally {
+      requestInProgress.current = false;
+      setLoading(false);
+      setRefreshing(false);
+    }, [isTeam, roleId, setTeams]);
 
   useEffect(() => {
     loadData();
@@ -177,14 +245,59 @@ const Teams = () => {
     return () => clearInterval(interval);
   }, [loadData]);
 
-  if (error) return <Container sx={{ pt: 12 }}><Alert severity="error">{error}</Alert></Container>;
-  if (isTeam && !privateTeam) return <Loading />;
-  if (!isTeam && teams.length === 0) return <Loading />;
+  const hasTeamData = isTeam ? Boolean(privateTeam) : teams.length > 0;
 
-  return isTeam ? (
-    <TeamPrivateView team={privateTeam} properties={properties} coinPrice={coinPrice} />
-  ) : (
-    <OperatorTeamTable teams={teams} properties={properties} coinPrice={coinPrice} />
+  const handleSignInAgain = () => {
+    localStorage.removeItem("role");
+    sessionStorage.removeItem("operatorToken");
+    setRole("");
+    setRoleId(0);
+    navigate("/login", { replace: true });
+  };
+
+  if (loading && !hasTeamData) return <Loading />;
+
+  return (
+    <Box>
+      {error && (
+        <Container maxWidth="lg" sx={{ pt: 10, pb: 0 }}>
+          <Alert severity={sessionExpired ? "warning" : "error"}>
+            <Typography variant="body2">{error}</Typography>
+            <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+              {sessionExpired ? (
+                <Button size="small" variant="outlined" onClick={handleSignInAgain}>
+                  Sign in again
+                </Button>
+              ) : (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={refreshing}
+                  onClick={loadData}
+                >
+                  {refreshing ? "Retrying…" : "Retry"}
+                </Button>
+              )}
+            </Stack>
+          </Alert>
+        </Container>
+      )}
+      {hasTeamData && (isTeam ? (
+        <TeamPrivateView
+          team={privateTeam}
+          properties={properties}
+          coinPrice={coinPrice}
+          topPadding={error ? 2 : 10}
+        />
+      ) : (
+        <OperatorTeamTable
+          teams={teams}
+          properties={properties}
+          coinPrice={coinPrice}
+          topPadding={error ? 2 : 10}
+        />
+      ))}
+    </Box>
   );
 };
 
