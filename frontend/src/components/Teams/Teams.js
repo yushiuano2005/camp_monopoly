@@ -237,7 +237,7 @@ const Teams = () => {
       requestInProgress.current = false;
       setLoading(false);
       setRefreshing(false);
-    }, [isTeam, roleId, setTeams]);
+    }}, [isTeam, roleId, setTeams]);
 
   useEffect(() => {
     loadData();
