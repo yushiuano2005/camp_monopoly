@@ -25,7 +25,7 @@ const npcSteps = [
   ["1. Confirm the game result", "Verify the team, board space, amount, and applicable rule before changing data."],
   ["2. Choose one operation", "Use Cash Adjustment for direct cash, Team Transfer for payments, and Bank Operations for deposits."],
   ["3. Keep property actions separate", "Use Property Purchase only for buying land, and Property Upgrade only for upgrades."],
-  ["4. Handle event demolition separately", "Use Property Demolition only when Culture Revolution requires one building to be removed without a refund."],
+  ["4. Keep property removal actions separate", "In Property Demolition, remove one building for a level reduction. Use Clear ownership only when the rules require the land to return to its initial unowned state."],
   ["5. Follow the bankruptcy order", "Offer a Bitcoin sale first; otherwise withdraw from the bank. If cash and bank are both insufficient, follow the SOP for bank robbery or jail. Never sell a property."],
   ["6. Verify after submitting", "Check All Teams, Properties, or Market View and do not submit the same result twice."],
 ];

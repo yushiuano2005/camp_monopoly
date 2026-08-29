@@ -17,6 +17,7 @@ import {
 import UpgradeIcon from "@mui/icons-material/Upgrade";
 import TeamSelect from "../TeamSelect";
 import axios from "../axios";
+import DiscountControl, { calculateDiscountedAmount } from "./DiscountControl";
 
 const uniqueProperties = (properties) => {
   const seen = new Set();
@@ -33,6 +34,7 @@ const SetShopLevel = () => {
   const [teamData, setTeamData] = useState(null);
   const [properties, setProperties] = useState([]);
   const [propertyId, setPropertyId] = useState(-1);
+  const [discountPercent, setDiscountPercent] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState({ open: false, severity: "success", text: "" });
 
@@ -52,6 +54,7 @@ const SetShopLevel = () => {
   const handleTeam = async (teamId) => {
     setTeam(teamId);
     setPropertyId(-1);
+    setDiscountPercent(0);
     await loadTeam(teamId);
   };
 
@@ -60,17 +63,23 @@ const SetShopLevel = () => {
     [properties, propertyId]
   );
   const price = Number(selectedProperty?.price?.upgrade || 0);
+  const payablePrice = calculateDiscountedAmount(price, discountPercent);
   const currentCash = Number(teamData?.money || 0);
-  const nextCash = currentCash - price;
+  const nextCash = currentCash - payablePrice;
   const canSubmit = Boolean(selectedProperty) && nextCash >= 0;
 
   const handleSubmit = async () => {
     if (!canSubmit || submitting) return;
     setSubmitting(true);
     try {
-      await axios.post("/property/upgrade", { teamId: team, landId: propertyId });
+      await axios.post("/property/upgrade", {
+        teamId: team,
+        landId: propertyId,
+        discountPercent,
+      });
       await loadTeam(team);
       setPropertyId(-1);
+      setDiscountPercent(0);
       setMessage({ open: true, severity: "success", text: "Property upgrade completed." });
     } catch (error) {
       setMessage({ open: true, severity: "error", text: error.response?.data?.error || "Property upgrade failed." });
@@ -94,7 +103,10 @@ const SetShopLevel = () => {
               labelId="upgrade-property-label"
               label="Property"
               value={propertyId}
-              onChange={(event) => setPropertyId(Number(event.target.value))}
+              onChange={(event) => {
+                setPropertyId(Number(event.target.value));
+                setDiscountPercent(0);
+              }}
             >
               <MenuItem value={-1}>Select a property</MenuItem>
               {properties.map((property) => (
@@ -111,12 +123,24 @@ const SetShopLevel = () => {
             <Box sx={{ mt: 2, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
               <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
                 <Typography fontWeight={700}>{selectedProperty.name}</Typography>
-                <Chip label={`Upgrade cost: ${price.toLocaleString()}`} />
+                <Chip label={`Pay: ${payablePrice.toLocaleString()}`} />
               </Box>
+              {discountPercent > 0 && (
+                <Typography color="text.secondary">
+                  Base cost: {price.toLocaleString()} ({discountPercent}% off)
+                </Typography>
+              )}
               <Typography sx={{ mt: 1 }}>Level: {selectedProperty.level} → {Number(selectedProperty.level) + 1}</Typography>
               <Typography>Cash: {currentCash.toLocaleString()} → {nextCash.toLocaleString()}</Typography>
               {nextCash < 0 && <Alert severity="error" sx={{ mt: 1 }}>The team does not have enough cash.</Alert>}
             </Box>
+          )}
+          {selectedProperty && (
+            <DiscountControl
+              baseAmount={price}
+              discountPercent={discountPercent}
+              onApply={setDiscountPercent}
+            />
           )}
           <Button fullWidth variant="contained" startIcon={<UpgradeIcon />} disabled={!canSubmit || submitting} onClick={handleSubmit} sx={{ mt: 2 }}>
             {submitting ? "Upgrading…" : "Confirm upgrade"}

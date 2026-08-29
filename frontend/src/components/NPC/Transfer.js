@@ -16,7 +16,8 @@ import {
   TableRow,
   TableCell,
   Table,
-  // Divider,
+  Alert,
+  Snackbar,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import HomeRoundedIcon from "@mui/icons-material/HomeRounded";
@@ -24,6 +25,7 @@ import PropertyCard from "../Properties/PropertyCard";
 import RoleContext from "../useRole";
 import axios from "../axios";
 import TeamSelect from "../TeamSelect";
+import DiscountControl from "./DiscountControl";
 
 const Transfer = () => {
   const [from, setFrom] = useState(-1);
@@ -35,9 +37,7 @@ const Transfer = () => {
   const [building, setBuilding] = useState(-1);
   const [buildingData, setBuildingData] = useState({});
 
-  const [count, setCount] = useState(-1);
-
-  const [discount, setDiscount] = useState(1);
+  const [discountPercent, setDiscountPercent] = useState(0);
 
   const [finalData, setFinalData] = useState({});
 
@@ -46,9 +46,8 @@ const Transfer = () => {
   const [useTransport, setUseTransport] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState("");
-  const [errorMessage0, setErrorMessage0] = useState("");
   const [error, setError] = useState(false);
-  const [error0, setError0] = useState(false);
+  const [message, setMessage] = useState({ open: false, severity: "error", text: "" });
   const { roleId, filteredBuildings, setNavBarId } = useContext(RoleContext);
   const navigate = useNavigate();
 
@@ -58,81 +57,6 @@ const Transfer = () => {
     setFromData(data);
     setFrom(from);
   };
-
-  // const handleDiscount = async (from) => {
-  //   // const { data } = await axios.get("/team/" + from);
-  //   // // console.log(data);
-  //   // setFromData(data);
-  //   // setFrom(from);
-
-  //   // console.log(fromData.resources.love);
-
-  //   if(fromData.resources.love === 0) {
-  //     setErrorMessage("No love, No discount");
-  //   }
-  //   else if(fromData.resources.love === 1) {
-  //     setAmount(amount * 0.95);
-  //     setErrorMessage("Discounted");
-  //   }
-  //   else if(fromData.resources.love === 2) {
-  //     setAmount(amount * 0.925);
-  //     setErrorMessage("Discounted");
-  //   }
-  //   else if(fromData.resources.love === 3) {
-  //     setAmount(amount * 0.9);
-  //     setErrorMessage("Discounted");
-  //   }
-  //   else if(fromData.resources.love === 4) {
-  //     setAmount(amount * 0.875);
-  //     setErrorMessage("Discounted");
-  //   }
-  //   else if(fromData.resources.love === 5) {
-  //     setAmount(amount * 0.85);
-  //     setErrorMessage("Discounted");
-  //   }
-  //   else if(fromData.resources.love === 6) {
-  //     setAmount(amount * 0.835);
-  //     setErrorMessage("Discounted");
-  //   }
-  //   else if(fromData.resources.love === 7) {
-  //     setAmount(amount * 0.82);
-  //     setErrorMessage("Discounted");
-  //   }
-  //   else if(fromData.resources.love >= 8) {
-  //     setAmount(amount * 0.805);
-  //     setErrorMessage("Discounted");
-  //   }
-  //   else if(fromData.resources.love >= 9) {
-  //     setAmount(amount * 0.79);
-  //     setErrorMessage("Discounted");
-  //   }
-  //   else if(fromData.resources.love >= 10) {
-  //     setAmount(amount * 0.775);
-  //     setErrorMessage("Discounted");
-  //   }
-  //   else if(fromData.resources.love >= 11) {
-  //     setAmount(amount * 0.76);
-  //     setErrorMessage("Discounted");
-  //   }
-  //   else if(fromData.resources.love >= 12) {
-  //     setAmount(amount * 0.745);
-  //     setErrorMessage("Discounted");
-  //   }
-  //   else if(fromData.resources.love >= 13) {
-  //     setAmount(amount * 0.73);
-  //     setErrorMessage("Discounted");
-  //   }
-  //   else if(fromData.resources.love >= 14) {
-  //     setAmount(amount * 0.715);
-  //     setErrorMessage("Discounted");
-  //   }else if(fromData.resources.love >= 15) {
-  //     setAmount(amount * 0.7);
-  //     setErrorMessage("Discounted");
-  //   }
-
-
-  //   console.log(amount);
-  // };
 
   const handleTo = async (to, newBuildingData) => {
     const { data: toData } = await axios.get("/team/" + to);
@@ -155,39 +79,48 @@ const Transfer = () => {
     }
   };
 
-  const FetchFinal = async () => {
-    const { data } = await axios.get("/transfer", {
-      params: {
-        from: from,
-        to: to,
-        IsEstate: building !== -1,
-        dollar: parseInt(amount),
-      },
-    });
-    console.log(data);
-    setFinalData(data);
+  const fetchFinal = async () => {
+    try {
+      const { data } = await axios.get("/transfer", {
+        params: {
+          from,
+          to,
+          IsEstate: building !== -1,
+          baseDollar: Number(amount),
+          discountPercent,
+        },
+      });
+      setFinalData(data);
+    } catch (requestError) {
+      setFinalData({});
+      setMessage({
+        open: true,
+        severity: "error",
+        text: requestError.response?.data?.error || "Unable to preview this transfer.",
+      });
+    }
   };
 
   const handleClick = async () => {
     const payload = {
-      from: from,
-      to: to,
+      from,
+      to,
       IsEstate: building !== -1,
-      dollar: parseInt(amount),
+      baseDollar: Number(amount),
+      discountPercent,
     };
-
-    console.log(payload);
-
-    console.log("before post");
-    await axios.post("/transfer", payload);
-    console.log("after post");
-    navigate("/teams");
-    setNavBarId(2);
+    try {
+      await axios.post("/transfer", payload);
+      navigate("/teams");
+      setNavBarId(2);
+    } catch (requestError) {
+      setMessage({
+        open: true,
+        severity: "error",
+        text: requestError.response?.data?.error || "Transfer failed.",
+      });
+    }
   };
-
-  const handleDiscount = () => {
-    setAmount(amount * discount);
-  }
 
   const handleBuilding = async (building) => {
     if (building > 0) {
@@ -196,6 +129,7 @@ const Transfer = () => {
       setBuildingData(data);
       setHotelDice(1);
       setUseTransport(false);
+      setDiscountPercent(0);
       if (data.owner !== 0) {
         handleTo(data.owner, data);
       } 
@@ -216,7 +150,6 @@ const Transfer = () => {
         area: data.area,
       });
       const c = res.data.count;
-      setCount(res.data.count);
 
       if (data.type === "Building") {
         if (data.level !== 0) {
@@ -229,6 +162,8 @@ const Transfer = () => {
     } else {
       setBuilding(-1);
       setBuildingData({});
+      setAmount(0);
+      setDiscountPercent(0);
     }
   };
 
@@ -277,10 +212,10 @@ const Transfer = () => {
   }, [roleId]);
 
   useEffect(() => {
-    if (from !== -1 && to !== -1 && amount !== 0 && from !== to) {
-      FetchFinal();
+    if (from !== -1 && to !== -1 && Number(amount) > 0 && from !== to) {
+      fetchFinal();
     }
-  }, [from, to, amount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [from, to, amount, building, discountPercent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const PreviewBuilding = () => {
     return (
@@ -364,6 +299,18 @@ const Transfer = () => {
                 <TableCell align="center">Before</TableCell>
                 <TableCell align="center">{fromData.money}</TableCell>
                 <TableCell align="center">{toData.money}</TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell align="center">Base / discounted</TableCell>
+                <TableCell align="center" colSpan={2}>
+                  {Number(finalData.baseAmount || 0).toLocaleString()} / {Number(finalData.amount || 0).toLocaleString()}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell align="center">Actual transfer</TableCell>
+                <TableCell align="center" colSpan={2}>
+                  {Number(finalData.transferAmount || 0).toLocaleString()}
+                </TableCell>
               </TableRow>
               <TableRow>
                 <TableCell align="center">After</TableCell>
@@ -527,6 +474,14 @@ const Transfer = () => {
             FormHelperTextProps={{ error: true }}
           />
 
+          <DiscountControl
+            baseAmount={Number(amount)}
+            discountPercent={discountPercent}
+            onApply={setDiscountPercent}
+            disabled={building === -1 || Number(amount) <= 0}
+            helperText="Discounts apply only to property rent. Select the fixed payable rate stated by the card or event."
+          />
+
           {/* <Box
             sx={{
               display: "flex",
@@ -621,7 +576,13 @@ const Transfer = () => {
 
           <Button
             variant="contained"
-            disabled={!(from && to && amount) || from === to}
+            disabled={
+              from === -1 ||
+              to === -1 ||
+              from === to ||
+              Number(amount) <= 0 ||
+              error
+            }
             onClick={handleClick}
             fullWidth
             sx={{ marginTop: 1 }}
@@ -632,6 +593,13 @@ const Transfer = () => {
         {building !== -1 ? <PreviewBuilding /> : null}
         {from !== -1 && to !== -1 ? <PreviewTransfer /> : null}
       </Box>
+      <Snackbar
+        open={message.open}
+        autoHideDuration={5000}
+        onClose={() => setMessage((state) => ({ ...state, open: false }))}
+      >
+        <Alert severity={message.severity}>{message.text}</Alert>
+      </Snackbar>
     </Container>
   );
 };

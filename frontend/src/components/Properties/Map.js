@@ -1,6 +1,5 @@
-import React, { useContext, useState, useEffect } from "react";
-import { Box, Typography, FormControl, Container } from "@mui/material";
-import { useNavigate } from "react-router-dom";
+import React from "react";
+import { Box, Typography, Container } from "@mui/material";
 
 const Map = () => {
   return (
@@ -27,9 +26,12 @@ const Map = () => {
         />
         <img
           src="/playground.jpg"
-          alt="Map"
+          alt="2026 venue map"
           style={{
+            width: "100%",
             maxWidth: "100%",
+            height: "auto",
+            marginTop: "24px",
             userSelect: "none",
           }}
         />

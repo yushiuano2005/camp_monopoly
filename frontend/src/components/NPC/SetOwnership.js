@@ -17,6 +17,7 @@ import {
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import TeamSelect from "../TeamSelect";
 import axios from "../axios";
+import DiscountControl, { calculateDiscountedAmount } from "./DiscountControl";
 
 const uniqueProperties = (properties) => {
   const seen = new Set();
@@ -34,6 +35,7 @@ const SetOwnership = () => {
   const [properties, setProperties] = useState([]);
   const [propertyId, setPropertyId] = useState(-1);
   const [development, setDevelopment] = useState("");
+  const [discountPercent, setDiscountPercent] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState({ open: false, severity: "success", text: "" });
 
@@ -47,6 +49,7 @@ const SetOwnership = () => {
   const handleTeam = async (teamId) => {
     setTeam(teamId);
     setPropertyId(-1);
+    setDiscountPercent(0);
     const { data } = await axios.get(`/team/${teamId}`);
     setTeamData(data);
   };
@@ -59,21 +62,28 @@ const SetOwnership = () => {
   const selectedProperty = properties.find((property) => property.id === propertyId);
   const isLargeProperty = Boolean(selectedProperty?.largePropertyGroup);
   const price = Number(selectedProperty?.price?.buy || 0);
+  const payablePrice = calculateDiscountedAmount(price, discountPercent);
   const currentCash = Number(teamData?.money || 0);
-  const nextCash = currentCash - price;
+  const nextCash = currentCash - payablePrice;
   const canSubmit = team !== -1 && propertyId !== -1 && (!isLargeProperty || Boolean(development)) && nextCash >= 0;
 
   const handleSubmit = async () => {
     if (!canSubmit || submitting) return;
     setSubmitting(true);
     try {
-      await axios.post("/property/purchase", { teamId: team, landId: propertyId, development });
+      await axios.post("/property/purchase", {
+        teamId: team,
+        landId: propertyId,
+        development,
+        discountPercent,
+      });
       if (!isLargeProperty) await axios.post("/calcbonus", { teamId: team, land: selectedProperty.name, level: 1 });
       const { data } = await axios.get(`/team/${team}`);
       setTeamData(data);
       await loadProperties();
       setPropertyId(-1);
       setDevelopment("");
+      setDiscountPercent(0);
       setMessage({ open: true, severity: "success", text: "Property purchase completed." });
     } catch (error) {
       setMessage({ open: true, severity: "error", text: error.response?.data?.error || "Property transaction failed." });
@@ -97,7 +107,11 @@ const SetOwnership = () => {
               labelId="property-trade-label"
               label="Property"
               value={propertyId}
-              onChange={(event) => { setPropertyId(Number(event.target.value)); setDevelopment(""); }}
+              onChange={(event) => {
+                setPropertyId(Number(event.target.value));
+                setDevelopment("");
+                setDiscountPercent(0);
+              }}
             >
               <MenuItem value={-1}>Select a property</MenuItem>
               {availableProperties.map((property) => (
@@ -121,11 +135,23 @@ const SetOwnership = () => {
             <Box sx={{ mt: 2, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
               <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
                 <Typography fontWeight={700}>{selectedProperty.name}</Typography>
-                <Chip label={`Purchase price: ${price.toLocaleString()}`} />
+                <Chip label={`Pay: ${payablePrice.toLocaleString()}`} />
               </Box>
+              {discountPercent > 0 && (
+                <Typography color="text.secondary">
+                  Base price: {price.toLocaleString()} ({discountPercent}% off)
+                </Typography>
+              )}
               <Typography sx={{ mt: 1 }}>Cash: {currentCash.toLocaleString()} → {nextCash.toLocaleString()}</Typography>
               {nextCash < 0 && <Alert severity="error" sx={{ mt: 1 }}>The team does not have enough cash.</Alert>}
             </Box>
+          )}
+          {selectedProperty && (
+            <DiscountControl
+              baseAmount={price}
+              discountPercent={discountPercent}
+              onApply={setDiscountPercent}
+            />
           )}
           {team !== -1 && availableProperties.length === 0 && (
             <Alert severity="info" sx={{ mt: 2 }}>No properties are currently available for purchase.</Alert>

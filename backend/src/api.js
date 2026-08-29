@@ -16,13 +16,18 @@ import {
   getEventExecutionDetails,
   getOrderedEventBranches,
 } from "./eventContent2026.js";
-import { RESET_SCOPE_OPTIONS, resetGameData } from "./initdata.js";
+import {
+  getInitialLandDefinition,
+  RESET_SCOPE_OPTIONS,
+  resetGameData,
+} from "./initdata.js";
 import {
   getDevelopmentConfig,
   getLargePropertyGroup,
   getLinkedLandIds,
   isLargeProperty,
 } from "./largeProperties.js";
+import { calculateDiscountedAmount } from "./pricing.js";
 const router = express.Router();
 const operatorSessions = new Map();
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
@@ -429,6 +434,7 @@ router.post("/property/purchase", requireOperator, async (req, res) => {
   const teamId = Number(req.body.teamId);
   const landId = Number(req.body.landId);
   const development = req.body.development || null;
+  const discountPercent = req.body.discountPercent ?? 0;
   const session = await mongoose.startSession();
   let result;
 
@@ -444,7 +450,11 @@ router.post("/property/purchase", requireOperator, async (req, res) => {
         throw Object.assign(new Error("Property already has an owner"), { status: 409 });
       }
 
-      const price = Number(land.price?.buy || 0);
+      const pricing = calculateDiscountedAmount(
+        land.price?.buy,
+        discountPercent
+      );
+      const price = pricing.amount;
       if (team.money < price) {
         throw Object.assign(new Error("Team does not have enough cash"), { status: 400 });
       }
@@ -464,7 +474,14 @@ router.post("/property/purchase", requireOperator, async (req, res) => {
       team.money -= price;
       await team.save({ session });
       await updateLinkedLandState(landId, state, { session });
-      result = { teamId, landIds: getLinkedLandIds(landId), price, balance: team.money };
+      result = {
+        teamId,
+        landIds: getLinkedLandIds(landId),
+        basePrice: pricing.baseAmount,
+        discountPercent: pricing.discountPercent,
+        price,
+        balance: team.money,
+      };
     });
     return res.status(200).json({ message: "Property purchased", ...result });
   } catch (error) {
@@ -477,6 +494,7 @@ router.post("/property/purchase", requireOperator, async (req, res) => {
 router.post("/property/upgrade", requireOperator, async (req, res) => {
   const teamId = Number(req.body.teamId);
   const landId = Number(req.body.landId);
+  const discountPercent = req.body.discountPercent ?? 0;
   const session = await mongoose.startSession();
   let result;
 
@@ -495,7 +513,11 @@ router.post("/property/upgrade", requireOperator, async (req, res) => {
         throw Object.assign(new Error("Property is already level 3"), { status: 400 });
       }
 
-      const price = Number(land.price?.upgrade || 0);
+      const pricing = calculateDiscountedAmount(
+        land.price?.upgrade,
+        discountPercent
+      );
+      const price = pricing.amount;
       if (team.money < price) {
         throw Object.assign(new Error("Team does not have enough cash"), { status: 400 });
       }
@@ -504,7 +526,15 @@ router.post("/property/upgrade", requireOperator, async (req, res) => {
       team.money -= price;
       await team.save({ session });
       await updateLinkedLandState(landId, { level: nextLevel }, { session });
-      result = { teamId, landIds: getLinkedLandIds(landId), level: nextLevel, price, balance: team.money };
+      result = {
+        teamId,
+        landIds: getLinkedLandIds(landId),
+        level: nextLevel,
+        basePrice: pricing.baseAmount,
+        discountPercent: pricing.discountPercent,
+        price,
+        balance: team.money,
+      };
     });
     return res.status(200).json({ message: "Property upgraded", ...result });
   } catch (error) {
@@ -517,34 +547,148 @@ router.post("/property/upgrade", requireOperator, async (req, res) => {
 router.post("/property/demolish", requireOperator, async (req, res) => {
   const teamId = Number(req.body.teamId);
   const landId = Number(req.body.landId);
-  const session = await mongoose.startSession();
-  let result;
-
-  try {
-    await session.withTransaction(async () => {
-      const team = await Team.findOne({ id: teamId }).session(session);
-      const land = await Land.findOne({ id: landId }).session(session);
-      if (!team || !land) throw Object.assign(new Error("Team or property not found"), { status: 404 });
-      if (land.owner !== teamId) {
-        throw Object.assign(new Error("Team does not own this property"), { status: 400 });
-      }
-      if (!["Building", "SpecialBuilding"].includes(land.type) || land.development === "Park") {
-        throw Object.assign(new Error("This property has no removable building"), { status: 400 });
-      }
-      if (Number(land.level) <= 1) {
-        throw Object.assign(new Error("This property has no building to remove"), { status: 400 });
-      }
-
-      const nextLevel = Number(land.level) - 1;
-      await updateLinkedLandState(landId, { level: nextLevel }, { session });
-      result = { teamId, landIds: getLinkedLandIds(landId), level: nextLevel };
-    });
-    return res.status(200).json({ message: "One building removed without refund", ...result });
-  } catch (error) {
-    return res.status(error.status || 500).json({ error: error.message });
-  } finally {
-    await session.endSession();
+  if (!Number.isInteger(teamId) || !Number.isInteger(landId)) {
+    return res.status(400).json({ error: "Select a valid team and property" });
   }
+
+  const [teamExists, selectedLand] = await Promise.all([
+    Team.exists({ id: teamId }),
+    Land.findOne({ id: landId }),
+  ]);
+  if (!teamExists || !selectedLand) {
+    return res.status(404).json({ error: "Team or property not found" });
+  }
+
+  const landIds = getLinkedLandIds(landId);
+  const linkedLands = await Land.find({ id: { $in: landIds } }).sort({ id: 1 });
+  if (linkedLands.length !== landIds.length) {
+    return res.status(409).json({ error: "Linked property data is incomplete" });
+  }
+  if (linkedLands.some((land) => Number(land.owner) !== teamId)) {
+    return res.status(409).json({ error: "Team does not own every linked property space" });
+  }
+  if (
+    linkedLands.some(
+      (land) =>
+        !["Building", "SpecialBuilding"].includes(land.type) ||
+        land.development === "Park"
+    )
+  ) {
+    return res.status(400).json({ error: "This property has no removable building" });
+  }
+
+  const currentLevel = Math.max(
+    ...linkedLands.map((land) => Number(land.level) || 0)
+  );
+  if (currentLevel <= 1) {
+    return res.status(400).json({ error: "This property has no building to remove" });
+  }
+
+  const nextLevel = currentLevel - 1;
+  const update = await Land.updateMany(
+    { id: { $in: landIds }, owner: teamId },
+    { $set: { level: nextLevel } }
+  );
+  if (update.matchedCount !== landIds.length) {
+    return res.status(409).json({ error: "Property state changed; reload and try again" });
+  }
+
+  return res.status(200).json({
+    message: "One building removed without refund",
+    teamId,
+    landIds,
+    previousLevel: currentLevel,
+    level: nextLevel,
+    refund: 0,
+  });
+});
+
+const createInitialLandUpdate = (landId) => {
+  const initialLand = getInitialLandDefinition(landId);
+  if (!initialLand) return null;
+
+  const stateFields = [
+    "level",
+    "buffed",
+    "rent",
+    "largePropertyGroup",
+    "development",
+    "transportFee",
+  ];
+  const $set = { owner: Number(initialLand.owner || 0) };
+  const $unset = {};
+
+  stateFields.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(initialLand, field)) {
+      $set[field] = initialLand[field];
+    } else {
+      $unset[field] = "";
+    }
+  });
+
+  const update = { $set };
+  if (Object.keys($unset).length > 0) update.$unset = $unset;
+  return update;
+};
+
+router.post("/property/clear-ownership", requireOperator, async (req, res) => {
+  const teamId = Number(req.body.teamId);
+  const landId = Number(req.body.landId);
+  if (!Number.isInteger(teamId) || !Number.isInteger(landId)) {
+    return res.status(400).json({ error: "Select a valid team and property" });
+  }
+
+  const [teamExists, selectedLand] = await Promise.all([
+    Team.exists({ id: teamId }),
+    Land.findOne({ id: landId }),
+  ]);
+  if (!teamExists || !selectedLand) {
+    return res.status(404).json({ error: "Team or property not found" });
+  }
+
+  const landIds = getLinkedLandIds(landId);
+  const linkedLands = await Land.find({ id: { $in: landIds } }).sort({ id: 1 });
+  if (linkedLands.length !== landIds.length) {
+    return res.status(409).json({ error: "Linked property data is incomplete" });
+  }
+  if (linkedLands.some((land) => Number(land.owner) !== teamId)) {
+    return res.status(409).json({ error: "Team does not own every linked property space" });
+  }
+  if (
+    linkedLands.some(
+      (land) => !["Building", "SpecialBuilding"].includes(land.type)
+    )
+  ) {
+    return res.status(400).json({ error: "This space is not a property" });
+  }
+
+  const operations = landIds.map((id) => {
+    const update = createInitialLandUpdate(id);
+    return update
+      ? { updateOne: { filter: { id, owner: teamId }, update } }
+      : null;
+  });
+  if (operations.some((operation) => operation === null)) {
+    return res.status(500).json({ error: "Initial property state was not found" });
+  }
+
+  const result = await Land.bulkWrite(operations);
+  if (result.matchedCount !== landIds.length) {
+    return res.status(409).json({
+      error: "Property state changed while clearing ownership; reload before continuing",
+    });
+  }
+
+  return res.status(200).json({
+    message: "Property ownership cleared and initial state restored",
+    teamId,
+    landIds,
+    previousOwner: teamId,
+    owner: 0,
+    level: 0,
+    refund: 0,
+    cashChanged: false,
+  });
 });
 
 router.post("/set", requireOperator, async (req, res) => {
@@ -1053,63 +1197,120 @@ router.post("/handleDeBuff", requireOperator, async (req, res) => {
   res.json("Success").status(200);
 });
 
-const calcTransfer = async (from, to, amount, isEstate) => {
-  if (from === to) return null;
+const parseEstateFlag = (value) =>
+  value === true || String(value).toLowerCase() === "true";
 
-  const FromTeam = await Team.findOne({ id: from }); //minus
-  const ToTeam = await Team.findOne({ id: to }); //add
-  if (!FromTeam || !ToTeam) {
-    console.log("error finding teams in func: calcTransfer");
-    return null;
+const parseTransferRequest = (input) => {
+  const from = Number(input.from);
+  const to = Number(input.to);
+  const isEstate = parseEstateFlag(input.IsEstate);
+  const baseDollar = Number(input.baseDollar ?? input.dollar);
+
+  if (!Number.isInteger(from) || !Number.isInteger(to)) {
+    const error = new Error("From team and to team must be valid team IDs");
+    error.status = 400;
+    throw error;
+  }
+  if (from === to) {
+    const error = new Error("From team and to team must be different");
+    error.status = 400;
+    throw error;
+  }
+  if (!Number.isFinite(baseDollar) || baseDollar <= 0) {
+    const error = new Error("Transfer amount must be greater than zero");
+    error.status = 400;
+    throw error;
   }
 
-  var FromAmount = parseInt(FromTeam.money);
-  var ToAmount = parseInt(ToTeam.money);
-  var TransferAmount = parseInt(amount);
-  console.log(TransferAmount, ToTeam.bonus.value);
-  if (isEstate && ToTeam.bonus.value !== 0)
-    TransferAmount *= ToTeam.bonus.value;
+  const pricing = calculateDiscountedAmount(
+    baseDollar,
+    input.discountPercent ?? 0
+  );
+  if (pricing.discountPercent > 0 && !isEstate) {
+    const error = new Error("Discounts can only be used for property rent");
+    error.status = 400;
+    throw error;
+  }
 
-  console.log(TransferAmount);
-  if (FromTeam.soulgem.value)
-    FromAmount -= parseInt(Math.round(TransferAmount * 1.5));
-  else FromAmount -= TransferAmount;
+  return { from, to, isEstate, pricing };
+};
 
-  if (ToTeam.soulgem.value)
-    ToAmount += parseInt(Math.round(TransferAmount * 2));
-  else ToAmount += TransferAmount;
-  console.log({ from: FromAmount, to: ToAmount });
-  return { from: FromAmount, to: ToAmount };
+const calcTransfer = async (from, to, amount, isEstate) => {
+  const FromTeam = await Team.findOne({ id: from }); // minus
+  const ToTeam = await Team.findOne({ id: to }); // add
+  if (!FromTeam || !ToTeam) return null;
+
+  let fromAmount = Number(FromTeam.money);
+  let toAmount = Number(ToTeam.money);
+  let transferAmount = Math.round(Number(amount));
+
+  const recipientBonus = Number(ToTeam.bonus?.value);
+  if (isEstate && recipientBonus !== 0 && Number.isFinite(recipientBonus)) {
+    transferAmount = Math.round(transferAmount * recipientBonus);
+  }
+
+  if (FromTeam.soulgem.value) {
+    fromAmount -= Math.round(transferAmount * 1.5);
+  } else {
+    fromAmount -= transferAmount;
+  }
+
+  if (ToTeam.soulgem.value) {
+    toAmount += Math.round(transferAmount * 2);
+  } else {
+    toAmount += transferAmount;
+  }
+
+  return { from: fromAmount, to: toAmount, transferAmount };
 };
 
 router.post("/transfer", requireOperator, async (req, res) => {
-  const { from, to, IsEstate, dollar } = req.body;
-  //update team status
-  await Team.findAndCheckValid(from);
-  await Team.findAndCheckValid(to);
+  try {
+    const { from, to, isEstate, pricing } = parseTransferRequest(req.body);
 
-  const data = await calcTransfer(from, to, dollar, IsEstate);
-  if (!data) {
-    console.log("Transfer failed");
-    res.status(403).send("Transfer failed");
-  } else {
-    await Team.findOneAndUpdate({ id: from }, { money: data.from });
-    await Team.findOneAndUpdate({ id: to }, { money: data.to });
-    res.status(200).send("Update succeeded");
-    console.log("success");
+    // Refresh temporary team effects before calculating the final balances.
+    await Team.findAndCheckValid(from);
+    await Team.findAndCheckValid(to);
+
+    const data = await calcTransfer(from, to, pricing.amount, isEstate);
+    if (!data) {
+      return res.status(404).json({ error: "One or both teams were not found" });
+    }
+
+    await Promise.all([
+      Team.findOneAndUpdate({ id: from }, { money: data.from }),
+      Team.findOneAndUpdate({ id: to }, { money: data.to }),
+    ]);
+
+    return res.status(200).json({
+      message: "Update succeeded",
+      ...pricing,
+      transferAmount: data.transferAmount,
+      from: data.from,
+      to: data.to,
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message });
   }
-  console.log("in transfer");
 });
 
-router.get("/transfer", async (req, res) => {
-  let from = req.query.from;
-  let to = req.query.to;
-  let IsEstate = req.query.IsEstate;
-  let dollar = req.query.dollar;
-  const data = await calcTransfer(from, to, dollar, IsEstate);
-  console.log(data);
-  if (data !== null) res.json(data).status(200);
-  else res.status(403).send();
+router.get("/transfer", requireOperator, async (req, res) => {
+  try {
+    const { from, to, isEstate, pricing } = parseTransferRequest(req.query);
+    const data = await calcTransfer(from, to, pricing.amount, isEstate);
+    if (!data) {
+      return res.status(404).json({ error: "One or both teams were not found" });
+    }
+
+    return res.status(200).json({
+      ...pricing,
+      transferAmount: data.transferAmount,
+      from: data.from,
+      to: data.to,
+    });
+  } catch (error) {
+    return res.status(error.status || 500).json({ error: error.message });
+  }
 });
 
 // async function updateHawkEye() {

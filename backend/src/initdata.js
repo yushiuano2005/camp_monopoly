@@ -480,6 +480,11 @@ const lands = [
   },
 ];
 
+export const getInitialLandDefinition = (landId) => {
+  const land = lands.find((item) => Number(item.id) === Number(landId));
+  return land ? JSON.parse(JSON.stringify(land)) : null;
+};
+
 const events = [
   {
     id: 0,
